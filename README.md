@@ -41,7 +41,7 @@ Two processes plus optional hardware, joined by explicit contracts:
 2. The Blender extension consumes the stream on a background thread and applies poses on the main thread at up to 30 FPS — without wiping your existing keyframes.
 3. The encoder rig (if connected) sends channel values over serial; per-axis mapping with individual scalars drives the target object's world transform.
 
-Binding structure lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+Step-by-step diagrams for every flow (live streaming, capture jobs, hardware input, install) live in [doc/workflows.md](doc/workflows.md); binding structure lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Body models and licensing
 
@@ -60,6 +60,7 @@ Full detail in the [PRD](doc/product/PRD.md).
 ## Project documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — layers, boundaries, IPC contracts
+- [doc/workflows.md](doc/workflows.md) — sequence diagrams and flowcharts per functionality
 - [AGENTS.md](AGENTS.md) — operational guide for contributors and coding agents
 - [doc/product/PRD.md](doc/product/PRD.md) — product scope, metrics, roadmap
 - [doc/reference/](doc/reference/README.md) — the papers and upstream projects this builds on

@@ -1,6 +1,6 @@
 # Architecture
 
-System-level patterns and boundaries. Pair with ADRs in `doc/adr/` for individual decisions.
+System-level patterns and boundaries. Pair with ADRs in `doc/adr/` for individual decisions; step-by-step functional flows are diagrammed in [`doc/workflows.md`](doc/workflows.md).
 
 ## Overview
 
