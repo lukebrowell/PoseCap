@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Licensed model assets — never committed (see AGENTS.md Security & Privacy)
+*.npz
+*.pkl
+*.pt
+*.ckpt
+*.onnx
+*.engine
+
+# Media captures / test footage
+assets/
+*.mp4
+
+# Runtime IPC dirs
+input_capture/
+output_capture/
+
+# OS / editor
+.DS_Store
+Thumbs.db
