@@ -24,3 +24,4 @@ Third-party papers and upstream docs the rewrite is grounded in. Read-only; none
 ## POC source
 
 * Dean's original drop: Google Drive, https://drive.google.com/file/d/1LlOcCRu_J6Q6xxjpJxI576pLoIx-q23B/view — local working copy at `C:\Dev\CorridorRig-Original` (read-only reference, see AGENTS.md).
+* [`poc-verification.md`](poc-verification.md) — evidence-based audit of what the POC verifiably does: working / unproven / broken / dead tiers. Canonical source of the MVP parity checklist.

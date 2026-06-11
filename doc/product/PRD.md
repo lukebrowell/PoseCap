@@ -25,7 +25,7 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 
 ## Goals
 
-* Full POC feature parity with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, photo upload, batch folder processing, Arduino rig input with per-axis mapping, SMPL-X model and shape management, pose import.
+* Parity with the POC's verified-working feature set (canonical list: [doc/reference/poc-verification.md](../reference/poc-verification.md)) with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, batch image processing, Arduino rig input with per-axis mapping, SMPL-X model spawn, pose import, keyframe management.
 * Live mocap performance: pose applied in the viewport at 30 FPS with under 100 ms capture-to-viewport latency on an RTX-class GPU.
 * Clean-machine setup completes in one documented installer pass in 15 minutes or less, including environment build.
 * License-clean repository from the first commit: no model files or weights ever in git history, so the repo can go public without history rewrite; addon code GPL-compatible; rewrite carries no code from the GPL POC fork.
@@ -35,7 +35,8 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 
 * Multi-camera estimation — research-grade, deferred (see Roadmap: Later).
 * Fast-SAM-3D-Body / MHR backend — second engine adapter, not part of parity (see Roadmap: Next).
-* Face, jaw, and expression capture — POC had it disabled; stays out until body capture is solid.
+* Face, jaw, and expression capture — POC had it deliberately disabled; stays out until body capture is solid.
+* SMPL+H body model — the POC's asset never existed; SMPL-X only.
 * Retargeting to arbitrary or Rigify rigs — SMPL-X armature is the only target for now.
 * Linux and macOS support in the MVP — Windows-first; platform adapters keep the door open.
 * Redistributing SMPL-X/FLAME/MANO model files or PEAR weights — never, in any release form.
@@ -44,26 +45,28 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 ## Success Metrics
 
 * Sustained 30 FPS pose application with capture-to-viewport latency under 100 ms on an RTX-class GPU — measured by instrumented timestamps logged by the engine bridge and addon (frame-stamped log comparison).
-* Parity checklist (derived from POC registered operators plus feature_updates.md) passes 100% — measured by the MVP spec acceptance criteria.
+* Parity checklist (derived from the verified-working and code-complete tiers of [doc/reference/poc-verification.md](../reference/poc-verification.md)) passes 100% — measured by the MVP spec acceptance criteria.
 * Clean-machine install test: one installer pass, 15 minutes or less, no manual file copying — measured by a documented install run on a machine without dev tooling.
 * At least one external (non-founder) contributor PR merged within 90 days of the public repo announcement — measured on GitHub.
 * Zero licensed binaries in git history at every release — measured by a repository scan in CI.
 
 ## Roadmap
 
-MVP — full POC parity, one vertical architecture:
+MVP — parity with the POC's verified-working set, one vertical architecture:
 
-* Live webcam streaming with explicit device selection — engine bridge, TCP pose stream, addon applies pose without touching existing keyframes.
-* Record Live MoCap — timeline-synced keyframe recording with clear start/stop, keyframes persist across stream restarts.
-* Single timed capture and photo upload — file-drop job with progress and failure reporting.
-* Batch folder processing — drop a folder of images, get pose files out.
-* Arduino encoder rig input — 8-channel read, per-axis channel mapping, per-axis scalars, stabilized rotation, no face/jaw channels.
-* SMPL-X model management — add body model, shape from betas and measurements, pose import, keyframe manager.
-* Windows installers — environment build and extension install via Blender's extension system.
+* Live webcam streaming with device selection — engine bridge, TCP pose stream, addon applies pose without touching existing keyframes; stream survives armature deletion/replacement (POC's biggest live failure mode).
+* Record Live MoCap — timeline-synced keyframe recording with clear start/stop, independent of any preview toggle (POC trap), keyframes persist across stream restarts.
+* Single timed capture — countdown, capture-to-pose with progress and failure reporting.
+* Batch image processing — select images in Blender, get poses applied; file-drop job under the hood.
+* Arduino encoder rig input — 8-channel read, per-axis channel mapping, per-axis scalars, stabilized rotation, no face/jaw channels. Code-complete in POC but never hardware-proven: first hardware validation happens here.
+* SMPL-X model spawn (v1.1 neutral), pose import with per-limb filters and orientation fix, keyframe manager.
+* Windows installers — environment build and extension install via Blender's extension system. The POC's documented install path was never proven (Dean ran a conda env); this one ships tested.
 
 Next:
 
 * Public release — repo goes public, contribution docs land, backend and licensing verified for announcement.
+* Photo upload (single image) and standalone folder watcher — built in the POC but never successfully exercised; same job pipeline as batch.
+* Shape editing UI (measurements-to-betas, randomize/reset) — orphaned operators in the POC, never reachable.
 * Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT).
 * Animation import (.npz AMASS) and FBX/Alembic export — advertised by the POC README but dead code in the POC.
 * Linux support for the engine bridge.
@@ -90,6 +93,8 @@ Later:
 * Repository home for the public repo — Corridor org, Dean's account, or Ale's account.
 * Go-public criteria — what gates the flip from private to public (MVP parity done? CI green? PEAR license verified? contribution docs ready?).
 * Parity checklist canonical source — first MVP spec must enumerate it from the POC's registered operators, not its README (README advertises dead features).
+
+  Resolved: the canonical source is [doc/reference/poc-verification.md](../reference/poc-verification.md), an evidence-based audit (artifact forensics + registration tracing) separating verified-working, code-complete-unproven, broken, and dead features. MVP parity scopes to the first two tiers.
 
 ## Related
 

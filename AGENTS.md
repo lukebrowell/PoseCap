@@ -83,3 +83,7 @@ Real traps confirmed in the POC; each is a contract the rewrite must honor or de
 * PEAR calls `.cuda()` unconditionally — CPU-only machines crash at runtime regardless of the install-time CPU fallback.
 * Blender 5.x changed action slots/channelbags — keyframe code needs version compat branches (POC: `operators/keyframes.py:84-97`).
 * POC addon bugs not to replicate: double class unregister on disable, dead unregistered operators (export/animation), webcam enumeration ignoring the engine-path preference, unbounded `modal_log.txt` growth.
+* The POC bundles licensed MPI assets (SMPL-X blends in addon `data/`, PEAR asset pack with FLAME/MANO). Never copy files out of `CorridorRig-Original` into this repo — reimplement code, fetch assets from official sources locally.
+* POC Record Live MoCap silently records nothing when the Preview toggle is off (insertion nested in the preview branch). The rewrite decouples recording from preview.
+* POC live stream threw 6,670 "StructRNA removed" errors when the armature was deleted mid-stream. Validate object references every frame; degrade gracefully.
+* The POC's documented `.venv` install path was never proven — all run traces point to a conda env (`pear10`). Treat install scripts as untested until run on a clean machine.
