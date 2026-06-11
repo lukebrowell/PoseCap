@@ -29,21 +29,18 @@ Addon code executes inside Blender's bundled Python: stdlib + `bpy`/`mathutils`/
 
 ## Quality Gates
 
-Deterministic enforcement — agent cannot skip.
+See [`GUIDELINES.md`](GUIDELINES.md) §8 for the full reference. Non-negotiable subset:
 
-* Pre-commit hook (fast): <TODO: not yet wired — run /ad-hooks after scaffold>
-* Pre-push hook (thorough): <TODO: not yet wired>
-* CI blocks on: <TODO: not yet wired>
+* Hooks not yet wired — run /ad-hooks after the pyproject scaffold lands.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## Code Style
 
-Only what differs from language defaults.
+See [`GUIDELINES.md`](GUIDELINES.md) §2–§4 for the full reference. Non-negotiable subset:
 
-* ruff is the single formatter and linter; pyright must pass on engine-bridge code.
-* Type hints required on all public functions; `bpy` types may use `# type: ignore` only at the Blender API boundary.
-* Windows-only mechanisms (process launch/kill, directory junctions, COM ports) live behind platform adapter modules — never inline `os.system`/`shell=True` in domain code.
-* IPC and serial wire formats are defined once in a shared contracts module — the POC's three divergent copies of identical preprocessing code is the anti-pattern being fixed.
+* ruff is the single formatter and linter; pyright strict on `contracts/`/`core/`; `# type: ignore` only at the `bpy` boundary with reason inline.
+* `bpy`, `torch`, `serial`, sockets, filesystem never imported in `contracts/` or `core/` (GUIDELINES §1 dependency rule).
+* Wire formats defined once in `contracts/` — never duplicated per consumer.
 
 ## Architectural Principles
 
@@ -62,17 +59,18 @@ Planned tree (POC paths in parentheses are reference only):
 
 ## Commit & PR Conventions
 
-* Commits: Conventional Commits with DCO `Signed-off-by`.
-* Branches: `feat/`, `fix/`, `chore/`.
-* PRs require: green CI, one review. <TODO: remote not yet created>
-* Never push to `main` directly.
+See [`GUIDELINES.md`](GUIDELINES.md) §10 for the full reference. Non-negotiable subset:
+
+* Conventional Commits + DCO `Signed-off-by`, atomic concerns (use `/ad-commit`).
+* Never push to `main` directly once a remote exists.
 
 ## Security & Privacy
 
-* Licensed model assets (SMPL-X `.npz`/`.pkl`, PEAR checkpoints, FLAME/MANO/MHR binaries) are never committed — keep them gitignored; document expected local paths instead.
+See [`GUIDELINES.md`](GUIDELINES.md) §12 for the full reference. Non-negotiable subset:
+
+* Licensed model assets never committed — gitignored; history must stay publishable.
 * `C:\Dev\CorridorRig-Original` is read-only reference material — never modify it.
-* PEAR downloads weights from HuggingFace (`BestWJH/PEAR_models`) at first run — pin the revision when wiring the bridge.
-* `torch.load(..., weights_only=False)` (a POC global monkeypatch) is forbidden — always load weights with `weights_only=True`.
+* `torch.load(..., weights_only=False)` and pickle IPC are banned.
 
 ## Gotchas
 
