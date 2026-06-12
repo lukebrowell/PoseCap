@@ -94,11 +94,11 @@ Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 
 
 ## 8. Quality Gates
 
-Not yet wired — invoke `/ad-hooks` after the pyproject scaffold lands. Planned shape:
+Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-commit install --hook-type pre-commit --hook-type pre-push`):
 
-* Pre-commit (fast): `ruff check`, `ruff format --check`, secret scan, licensed-binary scan (no `.npz`/`.pkl`/weights staged).
-* Pre-push (thorough): `pyright`, `pytest -m "not gpu and not e2e"`, import-linter.
-* CI: full suite including gpu-tagged tests on a self-hosted runner when available; `pip-audit` over the lockfile; licensed-binary history scan (PRD metric).
+* Pre-commit (fast): `ruff check`, `ruff format --check`, private-key detection, large-file cap (5 MB), licensed-binary block (`tools/check_licensed_binaries.py` — no `.npz`/`.pkl`/`.pt`/`.ckpt`/`.onnx`/`.engine` ever staged).
+* Pre-push (thorough): `pyright`, `pytest` (default tags), import-linter.
+* CI: <TODO: not yet wired — full suite plus `pip-audit` over the lockfile and licensed-binary history scan (PRD metric)>
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## 9. Testing Strategy

@@ -31,7 +31,7 @@ Addon code executes inside Blender's bundled Python: stdlib + `bpy`/`mathutils`/
 
 See [`GUIDELINES.md`](GUIDELINES.md) §8 for the full reference. Non-negotiable subset:
 
-* Hooks not yet wired — run /ad-hooks after the pyproject scaffold lands.
+* Hooks wired via pre-commit; new clones run `uv run pre-commit install --hook-type pre-commit --hook-type pre-push` once.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## Code Style
