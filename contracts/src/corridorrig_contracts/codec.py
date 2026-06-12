@@ -7,7 +7,7 @@ can pin the wire format byte for byte.
 import json
 from typing import cast
 
-from .errors import FrameDecodeError
+from .errors import ContractError, FrameDecodeError
 from .frames import (
     NUM_BETAS,
     NUM_BODY_JOINTS,
@@ -21,7 +21,13 @@ from .frames import (
 
 
 def encode_pose_frame(frame: PoseFrame) -> str:
-    """Return the canonical single-line JSON form, without a trailing newline."""
+    """Return the canonical single-line JSON form, without a trailing newline.
+
+    Raises ContractError when the frame breaks the status/pose invariant —
+    the encoder must never emit a wire line the decoder would reject.
+    """
+    if (frame.status == "ok") != (frame.pose is not None):
+        raise ContractError(f"status {frame.status!r} is inconsistent with pose presence")
     pose: dict[str, object] | None = None
     if frame.pose is not None:
         pose = {

@@ -11,6 +11,10 @@ NUM_SERIAL_CHANNELS = 8
 
 
 def parse_serial_line(line: str) -> list[float]:
+    """Parse one CSV sample into cumulative encoder degrees per channel.
+
+    Raises SerialDecodeError on wrong channel count or non-numeric values.
+    """
     parts = line.strip().split(",")
     if len(parts) != NUM_SERIAL_CHANNELS:
         raise SerialDecodeError(

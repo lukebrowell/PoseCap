@@ -25,6 +25,7 @@ class JobStatus:
 
 
 def encode_job_status(status: JobStatus) -> str:
+    """Return the canonical single-line JSON form of a job status document."""
     document = {
         "state": status.state,
         "progress": status.progress,
@@ -34,6 +35,7 @@ def encode_job_status(status: JobStatus) -> str:
 
 
 def decode_job_status(text: str) -> JobStatus:
+    """Parse and validate a job status document; raises JobStatusDecodeError on violations."""
     raw = _parse_object(text)
     state = _require_state(raw)
     progress = _require_progress(raw)
@@ -56,14 +58,8 @@ def _parse_object(text: str) -> dict[str, object]:
 
 def _require_state(raw: dict[str, object]) -> JobState:
     value = raw.get("state")
-    if value == "queued":
-        return "queued"
-    if value == "running":
-        return "running"
-    if value == "done":
-        return "done"
-    if value == "failed":
-        return "failed"
+    if isinstance(value, str) and value in _VALID_STATES:
+        return cast("JobState", value)
     raise JobStatusDecodeError(f"state must be one of {sorted(_VALID_STATES)}, got: {value!r}")
 
 
