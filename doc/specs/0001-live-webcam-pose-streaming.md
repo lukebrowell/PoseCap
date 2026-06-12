@@ -111,5 +111,5 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
 ## Related
 
 - ADRs: [0001](../adr/0001-adopt-hexagonal-architecture.md), [0002](../adr/0002-tcp-json-stream-live-pose.md), [0003](../adr/0003-json-wire-format-ban-pickle.md), [0004](../adr/0004-uv-workspace-vendor-shared-packages.md), [0005](../adr/0005-pear-external-pinned-never-vendored.md)
-- Tasks: none yet
+- Tasks: [0001 scaffold + contracts](../tasks/0001-scaffold-workspace-and-contracts.md), [0002 core pose math](../tasks/0002-core-pose-math-and-ports.md), [0003 engine bridge](../tasks/0003-engine-bridge-tcp-pear.md), [0004 addon client](../tasks/0004-addon-live-stream-client.md), [0005 record + keyframes](../tasks/0005-record-mocap-keyframes.md), [0006 installer + e2e](../tasks/0006-installer-and-e2e-verification.md)
 - Depends on: [PRD](../product/PRD.md) (accepted scope pending), [poc-verification.md](../reference/poc-verification.md) (evidence baseline)
