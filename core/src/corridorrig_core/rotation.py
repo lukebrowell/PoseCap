@@ -10,12 +10,15 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
+from .errors import CorridorRigError
+
 FloatArray = NDArray[np.float64]
 
 ZERO_ANGLE = 1e-12
 """Magnitudes below this are treated as no rotation (radians)."""
 
 IDENTITY_QUATERNION: FloatArray = np.array([1.0, 0.0, 0.0, 0.0])
+IDENTITY_QUATERNION.setflags(write=False)
 
 
 def axis_angle_to_quaternion(axis_angle: FloatArray) -> FloatArray:
@@ -31,9 +34,23 @@ def axis_angle_to_quaternion(axis_angle: FloatArray) -> FloatArray:
 
 
 def quaternion_to_axis_angle(quaternion: FloatArray) -> FloatArray:
-    """Convert a quaternion to a Rodrigues vector; identity (either sign) maps to zeros."""
+    """Convert a quaternion to a Rodrigues vector; identity (either sign) maps to zeros.
+
+    Raises CorridorRigError on a zero-norm input — that is a corrupt
+    quaternion, not a rotation, and must not silently become NaN on the
+    per-frame hot path.
+    """
     q = np.asarray(quaternion, dtype=np.float64)
-    q = q / float(np.linalg.norm(q))
+    norm = float(np.linalg.norm(q))
+    if norm < ZERO_ANGLE:
+        raise CorridorRigError("zero-norm quaternion cannot be converted to axis-angle")
+    q = q / norm
+    if q[0] < 0.0:
+        # Canonical short-way representation: q and -q encode the same
+        # rotation; picking w >= 0 keeps the angle within [0, pi]. (The POC's
+        # mathutils path emitted the long-way form here — same rotation,
+        # bigger numbers — and nothing downstream observes the difference.)
+        q = -q
     w = float(np.clip(q[0], -1.0, 1.0))
     sine = math.sqrt(max(0.0, 1.0 - w * w))
     if sine < ZERO_ANGLE:

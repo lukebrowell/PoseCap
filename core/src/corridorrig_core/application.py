@@ -27,6 +27,12 @@ KEYFRAME_DATA_PATH = "rotation_quaternion"
 
 @dataclass(frozen=True)
 class BoneRotation:
+    """quaternion is a read-only array — adapters copy before mutating.
+
+    Plans are safe to keep as the previous_quaternions source for the next
+    frame precisely because nothing can mutate them in place.
+    """
+
     bone_name: str
     quaternion: FloatArray
 
@@ -87,4 +93,6 @@ def _bone_rotation(
     reference = previous.get(name)
     if reference is not None:
         quaternion = make_sign_compatible(quaternion, reference)
+    quaternion = quaternion.copy()
+    quaternion.setflags(write=False)
     return BoneRotation(bone_name=name, quaternion=quaternion)

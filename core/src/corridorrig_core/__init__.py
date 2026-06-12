@@ -6,6 +6,7 @@ from .application import (
     PoseApplication,
     plan_pose_application,
 )
+from .errors import CorridorRigError
 from .filters import LimbFilter
 from .orientation import flip_global_orient
 from .ports import PoseStream
@@ -33,6 +34,7 @@ __all__ = [
     "RIGHT_HAND_JOINT_NAMES",
     "SMPLX_JOINT_NAMES",
     "BoneRotation",
+    "CorridorRigError",
     "LimbFilter",
     "PoseApplication",
     "PoseStream",

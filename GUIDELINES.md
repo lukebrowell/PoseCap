@@ -98,7 +98,7 @@ Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-c
 
 * Pre-commit (fast): `ruff check`, `ruff format --check`, private-key detection, large-file cap (5 MB), licensed-binary block (`tools/check_licensed_binaries.py` — no `.npz`/`.pkl`/`.pt`/`.ckpt`/`.onnx`/`.engine` ever staged).
 * Pre-push (thorough): `pyright`, `pytest` (default tags), import-linter.
-* CI: <TODO: not yet wired — full suite plus `pip-audit` over the lockfile and licensed-binary history scan (PRD metric)>
+* CI: not yet wired — will run the full suite plus `pip-audit` over the lockfile and the licensed-binary history scan (PRD metric); lands with the repo's first workflow file.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## 9. Testing Strategy

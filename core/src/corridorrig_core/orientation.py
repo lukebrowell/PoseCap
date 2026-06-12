@@ -18,6 +18,7 @@ from .rotation import (
 )
 
 _FLIP_X_180: FloatArray = axis_angle_to_quaternion(np.array([math.pi, 0.0, 0.0]))
+_FLIP_X_180.setflags(write=False)
 
 
 def flip_global_orient(axis_angle: FloatArray) -> FloatArray:
