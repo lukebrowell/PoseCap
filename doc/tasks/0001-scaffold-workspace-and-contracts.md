@@ -1,6 +1,6 @@
 # Task 0001: Scaffold uv workspace, contracts package, and tooling
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -49,11 +49,13 @@ Naming: the plan step said `encode_line()`/`decode_line()`; shipped names are `e
 
 Two-axis review (WORKFLOW §10) ran on the branch: 1 Standards Blocker (encoder accepted status/pose-inconsistent frames — fixed with an invariant guard plus two tests), 2 Standards Concerns (job-state dual representation deduplicated; test helpers converted to pytest fixtures), docstring notes addressed. Spec axis: zero blockers, no scope creep, no missing AC.
 
+Re-check confirmed all four findings resolved; verdict "ship as-is". Final gates: pytest 29/29, ruff clean, pyright 0 errors, import-linter 2/2 kept. Task closed; merge happens via the branch PR. Carry-over note for task 0003: `_require_status` in codec.py still uses an if-chain — apply the frozenset pattern if that file is touched again.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
