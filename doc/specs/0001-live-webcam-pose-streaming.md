@@ -13,7 +13,7 @@ Inherits from [PRD](../product/PRD.md): target user (Blender animators; Corridor
 ## User Scenarios
 
 - **Scenario 1: Start streaming**
-  - Given the engine environment is installed, an SMPL-X rig is spawned, and a webcam is connected
+  - Given the engine environment is installed, an SMPL-X armature is spawned, and a webcam is connected
   - When the user selects a camera device and clicks Start Stream
   - Then the engine process launches, the UI passes through Starting into Streaming, and the armature follows the performer in the viewport — without modifying any existing keyframes
 
@@ -97,8 +97,8 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
 ## Out of Scope
 
 - Photo upload, batch processing, folder watcher (separate specs; Next tier for unproven paths per PRD).
-- Arduino hardware rig input (separate spec; composes with this stream but ships independently).
-- Face, jaw, expression application; root translation from the AI engine (hardware rig owns world transform).
+- Arduino hardware input — dropped from the product entirely at product review; no separate spec will exist (supersession note under Open Questions).
+- Face, jaw, expression application; root translation from the AI engine (world position is a Later roadmap problem — software camera tracking).
 - Multi-camera estimation, non-PEAR backends, Linux support.
 - Legacy POC `.pkl` import (pose-import spec territory; converter is a PRD Next candidate).
 

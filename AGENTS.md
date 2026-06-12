@@ -44,7 +44,7 @@ See [`GUIDELINES.md`](GUIDELINES.md) §2–§4 for the full reference. Non-negot
 
 ## Architectural Principles
 
-Binding decisions live in [`doc/adr/`](doc/adr/). Do not reinvent. None recorded yet — record the IPC mechanism, layering, and vendoring decisions as ADRs before implementing them.
+Binding decisions live in [`doc/adr/`](doc/adr/). Do not reinvent. Six accepted: hexagonal layers + dependency rule (0001), TCP JSON IPC (0002), JSON wire format / pickle ban (0003), uv workspace vendoring (0004), PEAR external + pinned (0005), license split (0006).
 
 ## Repository Layout
 
@@ -54,7 +54,7 @@ Planned tree (POC paths in parentheses are reference only):
 * `engine/` — PEAR bridge: folder watcher, live stream, single inference (POC: `PEAR/{folder_watcher,live_webcam,inference_single}.py`)
 * `doc/adr/`, `doc/specs/`, `doc/tasks/` — decision records, feature specs, task files (ad-* kit conventions)
 * `.agents/skills/`, `.claude/` — agentic-docs kit v0.17.8-beta.1, profile `mature`
-* Vendored upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location. <TODO: vendoring strategy ADR>
+* Upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location (ADR-0005); shared-package vendoring strategy in ADR-0004.
 
 ## Commit & PR Conventions
 
@@ -75,7 +75,7 @@ See [`GUIDELINES.md`](GUIDELINES.md) §12 for the full reference. Non-negotiable
 
 Real traps confirmed in the POC; each is a contract the rewrite must honor or deliberately replace via ADR.
 
-* Engine-to-Blender IPC is file-based: `output_capture/live_pose.pkl` written via temp file + `os.replace`, consumer polls mtime on a modal timer. Consumers must tolerate partial and duplicate updates.
+* POC engine-to-Blender IPC was file-based (`output_capture/live_pose.pkl` via temp file + `os.replace`, mtime polling) and delivered every pose twice — deliberately replaced by the TCP JSON stream (ADR-0002); do not reintroduce file polling. The lesson carries over: the consumer must tolerate duplicate and partial frames.
 * Pose payload `transl` is the camera matrix translation, not true SMPL-X translation; the POC compensates with a 180-degree X rotation (`smplx_import_flip_pear`).
 * World position: poses apply pelvis-locked. The POC's Arduino world-input was dropped from scope (Dean, product review) — do not resurrect it; the future approach is software (camera tracking).
 * PEAR calls `.cuda()` unconditionally — CPU-only machines crash at runtime regardless of the install-time CPU fallback.

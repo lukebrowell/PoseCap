@@ -20,6 +20,10 @@ We will license `addon/` under GPL-3.0 and `contracts/`, `core/`, `engine/`, and
 * Two licenses add a line of explanation to CONTRIBUTING when it lands; slight onboarding overhead versus a single license.
 * Resolves the PRD open question on license split.
 
+## Amendment (2026-06-12)
+
+`firmware/` was dropped from the product at product review (see ADR-0001 amendment; PRD Non-goals). The split now covers four packages: `addon/` under GPL-3.0; `contracts/`, `core/`, and `engine/` under Apache-2.0. Mentions of firmware in the Context, Decision, Consequences, and Alternatives above are historical.
+
 ## Alternatives Considered
 
 * GPL-3.0 for everything — simplest story and common for Blender addons, but blocks permissive reuse of the bridge and firmware outside GPL projects.

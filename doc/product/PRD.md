@@ -2,7 +2,7 @@
 
 Status: accepted
 Created: 2026-06-11
-Updated: 2026-06-11
+Updated: 2026-06-12
 Owner: alexandremendoncaalvaro
 
 ## Product
@@ -92,7 +92,7 @@ Later:
 
 * License split: single GPL-3.0 for the whole repo, or GPL-3.0 addon plus MIT/Apache-2.0 for contracts/core/engine bridge? One ADR decides; affects how reusable the bridge is outside Blender.
 
-  Resolved: [ADR-0006](../adr/0006-license-split-gpl-addon-apache-libraries.md) (accepted) — GPL-3.0 for the addon, Apache-2.0 for contracts, core, engine bridge, and firmware. LICENSE files land with the scaffold.
+  Resolved: [ADR-0006](../adr/0006-license-split-gpl-addon-apache-libraries.md) (accepted, amended) — GPL-3.0 for the addon, Apache-2.0 for contracts, core, and engine bridge (the original split also covered the since-dropped firmware package). LICENSE files land with the scaffold.
 * PEAR upstream license terms (code at Pixel-Talk/PEAR and weights at BestWJH/PEAR_models) — verify redistribution and commercial-use terms before the public announcement names PEAR as the backend.
 * Commercial SMPL-X (Meshcapade) license for Corridor's production use — who obtains it and when.
 * Repository home for the public repo — Corridor org, Dean's account, or Ale's account.
@@ -107,4 +107,4 @@ Later:
 * AGENTS.md — operational guide; stack and licensing posture.
 * ARCHITECTURE.md — binding layer structure the roadmap items implement.
 * doc/reference/README.md — PEAR and Fast-SAM-3D-Body papers, upstream addon lineage.
-* ADRs: none yet; five candidates flagged in the architecture pass plus the license split above.
+* ADRs: six accepted in [doc/adr/](../adr/) — hexagonal layers, TCP IPC, JSON wire format, uv vendoring, PEAR pinning, license split.
