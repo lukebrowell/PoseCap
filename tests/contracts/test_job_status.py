@@ -1,5 +1,5 @@
 import pytest
-from corridorrig_contracts import (
+from posecap_contracts import (
     JobStatus,
     JobStatusDecodeError,
     decode_job_status,

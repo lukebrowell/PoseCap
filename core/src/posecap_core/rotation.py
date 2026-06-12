@@ -10,7 +10,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from .errors import CorridorRigError
+from .errors import PoseCapError
 
 FloatArray = NDArray[np.float64]
 
@@ -36,14 +36,14 @@ def axis_angle_to_quaternion(axis_angle: FloatArray) -> FloatArray:
 def quaternion_to_axis_angle(quaternion: FloatArray) -> FloatArray:
     """Convert a quaternion to a Rodrigues vector; identity (either sign) maps to zeros.
 
-    Raises CorridorRigError on a zero-norm input — that is a corrupt
+    Raises PoseCapError on a zero-norm input — that is a corrupt
     quaternion, not a rotation, and must not silently become NaN on the
     per-frame hot path.
     """
     q = np.asarray(quaternion, dtype=np.float64)
     norm = float(np.linalg.norm(q))
     if norm < ZERO_ANGLE:
-        raise CorridorRigError("zero-norm quaternion cannot be converted to axis-angle")
+        raise PoseCapError("zero-norm quaternion cannot be converted to axis-angle")
     q = q / norm
     if q[0] < 0.0:
         # Canonical short-way representation: q and -q encode the same

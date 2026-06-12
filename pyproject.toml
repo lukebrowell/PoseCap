@@ -1,21 +1,21 @@
 [project]
-name = "corridorrig"
+name = "posecap"
 version = "0.1.0"
-description = "CorridorRig workspace root"
+description = "PoseCap workspace root"
 requires-python = ">=3.11"
 dependencies = [
-  "corridorrig-contracts",
-  "corridorrig-core",
-  "corridorrig-engine",
+  "posecap-contracts",
+  "posecap-core",
+  "posecap-engine",
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.sources]
-corridorrig-contracts = { workspace = true }
-corridorrig-core = { workspace = true }
-corridorrig-engine = { workspace = true }
+posecap-contracts = { workspace = true }
+posecap-core = { workspace = true }
+posecap-engine = { workspace = true }
 
 [tool.uv.workspace]
 members = ["contracts", "core", "engine"]
@@ -61,19 +61,19 @@ strict = ["contracts", "core"]
 
 [tool.importlinter]
 root_packages = [
-  "corridorrig_contracts",
-  "corridorrig_core",
-  "corridorrig_engine",
+  "posecap_contracts",
+  "posecap_core",
+  "posecap_engine",
 ]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "contracts is the innermost layer"
 type = "forbidden"
-source_modules = ["corridorrig_contracts"]
+source_modules = ["posecap_contracts"]
 forbidden_modules = [
-  "corridorrig_core",
-  "corridorrig_engine",
+  "posecap_core",
+  "posecap_engine",
   "numpy",
   "bpy",
   "torch",
@@ -84,9 +84,9 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "core depends inward only"
 type = "forbidden"
-source_modules = ["corridorrig_core"]
+source_modules = ["posecap_core"]
 forbidden_modules = [
-  "corridorrig_engine",
+  "posecap_engine",
   "bpy",
   "torch",
   "serial",

@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from corridorrig_contracts import PoseFrame
+from posecap_contracts import PoseFrame
 
 
 class PoseStream(Protocol):

@@ -2,9 +2,9 @@ import math
 
 import numpy as np
 import pytest
-from corridorrig_core import (
+from posecap_core import (
     IDENTITY_QUATERNION,
-    CorridorRigError,
+    PoseCapError,
     axis_angle_to_quaternion,
     make_sign_compatible,
     quaternion_multiply,
@@ -39,7 +39,7 @@ def test_round_trip_preserves_rotation() -> None:
 
 
 def test_zero_norm_quaternion_raises_typed_error() -> None:
-    with pytest.raises(CorridorRigError, match="zero-norm"):
+    with pytest.raises(PoseCapError, match="zero-norm"):
         quaternion_to_axis_angle(np.zeros(4))
 
 

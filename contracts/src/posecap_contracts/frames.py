@@ -1,4 +1,4 @@
-"""Pose-frame types shared by every CorridorRig process.
+"""Pose-frame types shared by every PoseCap process.
 
 All rotations are axis-angle (Rodrigues) vectors in radians. Array order is
 the SMPL-X joint order: index, not name, is the contract — body joint i maps

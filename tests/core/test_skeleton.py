@@ -1,5 +1,5 @@
-from corridorrig_contracts import NUM_BODY_JOINTS, NUM_HAND_JOINTS
-from corridorrig_core import (
+from posecap_contracts import NUM_BODY_JOINTS, NUM_HAND_JOINTS
+from posecap_core import (
     BODY_JOINT_NAMES,
     LEFT_HAND_JOINT_NAMES,
     PELVIS,

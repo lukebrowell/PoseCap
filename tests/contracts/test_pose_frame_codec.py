@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
-from corridorrig_contracts import (
+from posecap_contracts import (
     ContractError,
     FrameDecodeError,
     PoseFrame,

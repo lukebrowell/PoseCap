@@ -2,14 +2,14 @@ import math
 
 import numpy as np
 import pytest
-from corridorrig_contracts import (
+from posecap_contracts import (
     NUM_BETAS,
     NUM_BODY_JOINTS,
     NUM_EXPRESSION,
     NUM_HAND_JOINTS,
     PosePayload,
 )
-from corridorrig_core import (
+from posecap_core import (
     KEYFRAME_DATA_PATH,
     LimbFilter,
     axis_angle_to_quaternion,

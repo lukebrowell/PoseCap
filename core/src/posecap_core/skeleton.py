@@ -6,7 +6,7 @@ positions 1..21, and the hands are the trailing 2 x 15 names, left block
 first. Ported verbatim from the POC's model spec.
 """
 
-from corridorrig_contracts import NUM_BODY_JOINTS, NUM_HAND_JOINTS
+from posecap_contracts import NUM_BODY_JOINTS, NUM_HAND_JOINTS
 
 PELVIS = "pelvis"
 

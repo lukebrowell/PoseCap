@@ -1,5 +1,5 @@
 import pytest
-from corridorrig_core import LimbFilter
+from posecap_core import LimbFilter
 
 LEFT_FINGER_COUNT = 15
 ARM_LEFT = {"left_shoulder", "left_elbow", "left_wrist"}

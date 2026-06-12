@@ -1,5 +1,5 @@
 import pytest
-from corridorrig_contracts import (
+from posecap_contracts import (
     NUM_BETAS,
     NUM_BODY_JOINTS,
     NUM_EXPRESSION,

@@ -1,4 +1,4 @@
-"""CorridorRig domain logic. Imports stdlib, numpy, and contracts only — by contract."""
+"""PoseCap domain logic. Imports stdlib, numpy, and contracts only — by contract."""
 
 from .application import (
     KEYFRAME_DATA_PATH,
@@ -6,7 +6,7 @@ from .application import (
     PoseApplication,
     plan_pose_application,
 )
-from .errors import CorridorRigError
+from .errors import PoseCapError
 from .filters import LimbFilter
 from .orientation import flip_global_orient
 from .ports import PoseStream
@@ -34,7 +34,7 @@ __all__ = [
     "RIGHT_HAND_JOINT_NAMES",
     "SMPLX_JOINT_NAMES",
     "BoneRotation",
-    "CorridorRigError",
+    "PoseCapError",
     "LimbFilter",
     "PoseApplication",
     "PoseStream",

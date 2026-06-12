@@ -29,7 +29,7 @@ jobs:
       - name: Layer dependency rule (ADR-0001)
         run: uv run lint-imports
       - name: Tests + coverage gate
-        run: uv run pytest -q --cov=corridorrig_core --cov=corridorrig_contracts --cov-fail-under=90
+        run: uv run pytest -q --cov=posecap_core --cov=posecap_contracts --cov-fail-under=90
 
   licensed-binaries:
     name: licensed-binary scan (PRD metric)

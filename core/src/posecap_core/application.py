@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
-from corridorrig_contracts import PosePayload
+from posecap_contracts import PosePayload
 
 from .filters import LimbFilter
 from .orientation import flip_global_orient

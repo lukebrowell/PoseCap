@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-from corridorrig_core import flip_global_orient
+from posecap_core import flip_global_orient
 
 
 def _rotation_matrix(axis_angle: np.ndarray) -> np.ndarray:
