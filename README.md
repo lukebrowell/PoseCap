@@ -67,7 +67,7 @@ Full detail in the [PRD](doc/product/PRD.md).
 
 ## Contributing
 
-Until a CONTRIBUTING.md lands: read [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) first, open an issue before large changes, and never commit model files or weights — the gitignore and CI guard this, and license-clean history is a hard rule.
+See [CONTRIBUTING.md](CONTRIBUTING.md) — setup from clone to green tests, the project map, commit conventions, and the rules CI enforces. Short version: most of the codebase (`contracts/`, `core/`) needs no GPU and no Blender to work on; never commit model files or weights; one concern per signed-off commit.
 
 ## Acknowledgements
 
