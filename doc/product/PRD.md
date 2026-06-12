@@ -68,7 +68,7 @@ Next:
 * Public release — repo goes public, contribution docs land, backend and licensing verified for announcement.
 * Photo upload (single image) and standalone folder watcher — built in the POC but never successfully exercised; same job pipeline as batch.
 * Shape editing UI (measurements-to-betas, randomize/reset) — orphaned operators in the POC, never reachable.
-* Pose-accuracy eval harness — self-made golden samples (rendered SMPL-X animations with known parameters; optionally a Corridor-shot real reference session) scored with metric-and-tolerance comparison; baseline-relative regression gate for backend swaps and PEAR pin bumps. Built via spike once the engine CLI exists; prerequisite for objective backend comparison.
+* Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate for backend swaps and PEAR pin bumps. The harness is built via spike once the engine CLI exists, but golden-sample acquisition starts immediately in parallel with MVP development (task 0007): synthetic renders have zero code dependency, and the Corridor suit-plus-webcam session has the longest scheduling lead time of anything on this roadmap. Prerequisite for objective backend comparison.
 * Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT). The eval harness above is the tool this work is measured with.
 * Animation import (.npz AMASS) and FBX/Alembic export — advertised by the POC README but dead code in the POC.
 * Linux support for the engine bridge.
@@ -93,7 +93,7 @@ Later:
 * PEAR upstream license terms (code at Pixel-Talk/PEAR and weights at BestWJH/PEAR_models) — verify redistribution and commercial-use terms before the public announcement names PEAR as the backend.
 * Commercial SMPL-X (Meshcapade) license for Corridor's production use — who obtains it and when.
 * Repository home for the public repo — Corridor org, Dean's account, or Ale's account.
-* Eval-harness design: metric set (MPJPE, PA-MPJPE, joint-angle error, temporal jitter/acceleration), regression threshold, and whether Corridor shoots a real reference session to complement synthetic renders — decided in the eval spike after the engine CLI lands (task 0003). Ground-truth data must be self-made; research datasets (AMASS, 3DPW) are license-restricted and never enter the repo.
+* Eval-harness design: metric set (MPJPE, PA-MPJPE, joint-angle error, temporal jitter/acceleration) and regression threshold — decided in the eval spike after the engine CLI lands (task 0003). Ground-truth data must be self-made; research datasets (AMASS, 3DPW) are license-restricted and never enter the repo. Ground-truth tiers: synthetic renders (perfect answer key), suit-plus-webcam session (real-world truth), footage-only (qualitative and no-reference jitter checks only — no true values without a suit). Acquisition is task 0007, running in parallel with MVP work.
 * Go-public criteria — what gates the flip from private to public (MVP parity done? CI green? PEAR license verified? contribution docs ready?).
 * Parity checklist canonical source — first MVP spec must enumerate it from the POC's registered operators, not its README (README advertises dead features).
 
