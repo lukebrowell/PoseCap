@@ -1,3 +1,5 @@
-"""PoseCap engine bridge. Inference, streaming, and batch work land in task 0003."""
+"""PoseCap engine bridge: device discovery, PEAR inference, and TCP streaming."""
 
-__all__: list[str] = []
+from .config import PEAR_MODELS_REVISION, PEAR_REVISION
+
+__all__ = ["PEAR_MODELS_REVISION", "PEAR_REVISION"]

@@ -5,9 +5,13 @@ description = "PoseCap engine bridge: PEAR inference, TCP pose stream, batch job
 requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = [
+  "opencv-python>=4.10",
   "posecap-contracts",
   "posecap-core",
 ]
+
+[project.scripts]
+posecap-engine = "posecap_engine.cli:main"
 
 [tool.uv.sources]
 posecap-contracts = { workspace = true }
