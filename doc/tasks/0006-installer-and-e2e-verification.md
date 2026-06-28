@@ -27,7 +27,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] `tools/install/` — environment installer (uv bootstrap, sync, PEAR fetch at pin, gated PyTorch3D build if no wheel).
+- [ ] `tools/install/` — environment installer (uv bootstrap, sync, PEAR fetch at pin, ADR-0007 PEAR runtime matrix, gated PyTorch3D source build).
 - [ ] Doctor command (engine CLI subcommand) per workflows.md install flow.
 - [ ] Latency measurement: resolve clock-source question; implement timestamp comparison tooling over the instrumentation logs.
 - [ ] Clean-machine install run; document timings and friction in Notes; fix what failed; repeat until criterion passes.
@@ -37,6 +37,16 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 ## Notes
 
 Append-only log. Date each entry. Never rewrite past entries.
+
+### 2026-06-27
+
+Task 0007 introduced `tools/install/setup_pear_runtime.ps1` and ADR-0007 as a
+workstation-validated Windows PEAR runtime candidate for the installer work: Python 3.11,
+Torch/Torchvision cu124, CUDA Toolkit v12.8 for the PyTorch3D source build,
+PyTorch3D v0.7.9 from a short local checkout, external pinned PEAR, and
+`posecap-engine doctor --download-weights` as the readiness gate. The clean-machine
+installer in this task should consume that path after ADR acceptance instead of
+inventing a new runtime matrix.
 
 ## Definition of Done
 

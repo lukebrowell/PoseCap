@@ -10,6 +10,7 @@ from typing import TextIO
 
 from . import capture
 from .config import DEFAULT_HOST, DEFAULT_PORT
+from .doctor import encode_doctor_report, run_doctor
 from .errors import EngineError
 from .frame_sources import FixtureFrameSource
 from .logging_config import configure_logging
@@ -53,9 +54,18 @@ def _build_parser() -> argparse.ArgumentParser:
     live.add_argument("--fixture-frame-interval", type=float, default=0.0)
     live.add_argument("--pear-root", type=Path)
     live.add_argument("--camera-index", type=int, default=0)
+    live.add_argument("--width", type=int, default=1280)
+    live.add_argument("--height", type=int, default=720)
+    live.add_argument("--yolo-threshold", type=float, default=0.3)
+    live.add_argument("--crop-ratio", type=float, default=1.75)
     live.add_argument("--parent-pid", type=int)
     live.add_argument("--log-file", type=Path)
     live.set_defaults(func=_run_live)
+
+    doctor = subparsers.add_parser("doctor", help="check PEAR runtime readiness")
+    doctor.add_argument("--pear-root", type=Path)
+    doctor.add_argument("--download-weights", action="store_true")
+    doctor.set_defaults(func=_run_doctor)
     return parser
 
 
@@ -89,6 +99,15 @@ def _run_live(args: argparse.Namespace, stdout: TextIO) -> int:
     return 0
 
 
+def _run_doctor(args: argparse.Namespace, stdout: TextIO) -> int:
+    report = run_doctor(
+        pear_root=args.pear_root,
+        download_weights=bool(args.download_weights),
+    )
+    print(encode_doctor_report(report), file=stdout)
+    return 0 if bool(report["ok"]) else 1
+
+
 def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSource:
     if args.fixture is not None:
         return FixtureFrameSource(
@@ -98,7 +117,14 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
         )
     if args.pear_root is None:
         raise EngineError("live requires either --fixture or --pear-root")
-    return PearFrameSource(args.pear_root, camera_index=args.camera_index)
+    return PearFrameSource(
+        args.pear_root,
+        camera_index=args.camera_index,
+        width=args.width,
+        height=args.height,
+        yolo_threshold=args.yolo_threshold,
+        crop_ratio=args.crop_ratio,
+    )
 
 
 if __name__ == "__main__":
