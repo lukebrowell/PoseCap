@@ -20,7 +20,7 @@ Python itself is managed by uv — you do not need a system Python.
 git clone https://github.com/alexandremendoncaalvaro/PoseCap.git
 cd PoseCap
 uv sync
-uv run pre-commit install --hook-type pre-commit --hook-type pre-push
+uv run pre-commit install
 uv run pytest
 ```
 
@@ -32,11 +32,12 @@ If the last command prints all green, you are ready.
 uv run pytest tests/core/test_rotation.py   # single file while developing
 uv run pytest                               # default suite (excludes gpu/e2e/eval tags)
 uv run ruff check . && uv run ruff format . # lint + format
-uv run pyright                              # types (strict on contracts/core)
+uv run pyright --pythonplatform Windows     # Windows type surface
+uv run pyright --pythonplatform Linux       # Linux type surface
 uv run lint-imports                         # layer dependency rule
 ```
 
-The pre-commit hook runs the fast checks on every commit; the pre-push hook runs the full gate. CI runs everything again on Linux and Windows. None of these are skippable — `--no-verify` is not used in this project.
+The pre-commit hook runs the fast checks on every commit; the pre-push hook runs the full gate, including explicit Windows and Linux Pyright checks. CI runs everything again on Linux and Windows. None of these are skippable — `--no-verify` is not used in this project.
 
 ## Know the map before you change it
 
