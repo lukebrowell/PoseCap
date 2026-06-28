@@ -21,11 +21,12 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright
+uv run pyright --pythonplatform Linux
 uv run lint-imports
 uv run pytest
 ```
 
-Quality gates run as: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run lint-imports`, `uv run pytest`.
+Quality gates run as: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest`.
 
 Addon code executes inside Blender's bundled Python: stdlib + `bpy`/`mathutils`/`numpy` only; third-party deps must be vendored in the extension wheel, never uv-installed.
 
@@ -35,7 +36,7 @@ See [`GUIDELINES.md`](GUIDELINES.md) §8 for the full reference. Non-negotiable 
 
 * Hooks wired via pre-commit; new clones run `uv run pre-commit install --hook-type pre-commit --hook-type pre-push` once.
 * Pre-commit runs ruff, format check, private-key detection, large-file cap, and licensed-binary blocking.
-* Pre-push runs pyright, pytest default tags, and import-linter.
+* Pre-push runs pyright on the host plus Linux platform stubs, pytest default tags, and import-linter.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## Code Style

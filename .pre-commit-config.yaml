@@ -27,6 +27,12 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+      - id: pyright-linux
+        name: pyright (linux platform)
+        entry: uv run pyright --pythonplatform Linux
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
       - id: pytest
         name: pytest (default tags)
         entry: uv run pytest -q

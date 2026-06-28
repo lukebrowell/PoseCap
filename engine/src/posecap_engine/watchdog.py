@@ -3,6 +3,7 @@
 import ctypes
 import os
 from collections.abc import Callable
+from typing import Any, cast
 
 ProcessProbe = Callable[[int], bool]
 
@@ -41,10 +42,11 @@ def _is_process_alive_posix(pid: int) -> bool:
 def _is_process_alive_windows(pid: int) -> bool:
     synchronize = 0x00100000
     wait_timeout = 0x00000102
-    handle = ctypes.windll.kernel32.OpenProcess(synchronize, False, pid)
+    kernel32: Any = cast(Any, ctypes).windll.kernel32
+    handle = kernel32.OpenProcess(synchronize, False, pid)
     if not handle:
         return False
     try:
-        return ctypes.windll.kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+        return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
     finally:
-        ctypes.windll.kernel32.CloseHandle(handle)
+        kernel32.CloseHandle(handle)

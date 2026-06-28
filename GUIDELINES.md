@@ -97,7 +97,7 @@ Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 
 Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-commit install --hook-type pre-commit --hook-type pre-push`):
 
 * Pre-commit (fast): `ruff check`, `ruff format --check`, private-key detection, large-file cap (5 MB), licensed-binary block (`tools/check_licensed_binaries.py` — no `.npz`/`.pkl`/`.pt`/`.ckpt`/`.onnx`/`.engine` ever staged).
-* Pre-push (thorough): `pyright`, `pytest` (default tags), import-linter.
+* Pre-push (thorough): `pyright`, `pyright --pythonplatform Linux`, `pytest` (default tags), import-linter.
 * CI (`.github/workflows/ci.yml`): full gate matrix on Linux and Windows (ruff, format, pyright, import-linter, pytest with a 90% coverage floor on contracts/core), licensed-binary tree scan, and `pip-audit` over the exported lockfile. Runs on every PR and on `main`. `gpu`/`e2e`/`eval` tags stay local until a GPU runner exists.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
