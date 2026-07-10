@@ -37,15 +37,17 @@ class PreviewFrameWriter:
         self._count += 1
         if self._count % self._interval != 0:
             return False
-        self._write(rgb_image)
-        return True
+        return self._write(rgb_image)
 
-    def _write(self, rgb_image: Any) -> None:
+    def _write(self, rgb_image: Any) -> bool:
         image = self._downscale(rgb_image)
         bgr = self._cv2.cvtColor(image, self._cv2.COLOR_RGB2BGR)
-        temporary = self._path.with_name(self._path.name + ".tmp")
-        self._cv2.imwrite(str(temporary), bgr)
+        # cv2 picks the encoder from the extension, so the temp keeps ".jpg".
+        temporary = self._path.with_name(f"{self._path.stem}.partial{self._path.suffix}")
+        if not self._cv2.imwrite(str(temporary), bgr):
+            return False
         os.replace(temporary, self._path)
+        return True
 
     def _downscale(self, rgb_image: Any) -> Any:
         height, width = rgb_image.shape[:2]
