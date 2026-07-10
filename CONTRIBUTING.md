@@ -53,8 +53,16 @@ The one rule that surprises people: the dependency direction is machine-enforced
 
 ## Never commit
 
-- SMPL-X/FLAME/MANO model files or any AI weights (`.npz`, `.pkl`, `.pt`, `.ckpt`, `.onnx`, `.engine`) — these carry restrictive licenses and this repo's history must stay clean. A hook and a CI job both block them.
+- SMPL-X/FLAME/MANO model files or any AI weights (`.npz`, `.pkl`, `.pt`, `.ckpt`, `.onnx`, `.engine`) — these carry restrictive licenses and this repo's history must stay clean. The pre-commit hook and a CI tree scan both block them; the PR goes red.
 - Secrets of any kind.
+
+## Never bypass the model-license gate
+
+The MPI body models are research-licensed: each user must register on the official MPI sites and accept the terms personally. Never add a code path that obtains the models without that user action — no Google Drive or Hugging Face mirrors of the MPI files, no bundling in installers, no anonymous downloads. The setup wizard's credential gate is deliberate; PRs that route around it are rejected.
+
+Documented exception: `smpl_mean_params.npz` is public derived data (origin: SPIN), not gated by MPI, and is pinned by hash in [contracts/src/posecap_contracts/model_assets.py](contracts/src/posecap_contracts/model_assets.py).
+
+This guide summarizes; the normative rules live in [AGENTS.md](AGENTS.md) and [GUIDELINES.md](GUIDELINES.md) §12.
 
 ## Branches, commits, pull requests
 

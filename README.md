@@ -53,9 +53,11 @@ Step-by-step diagrams for every flow (live streaming, capture jobs, install) liv
 
 ## Body models and licensing
 
-SMPL-X body model files are **not included** and never will be — they are licensed by the Max Planck Institute (research) and [Meshcapade](https://meshcapade.com) (commercial). You download them yourself after accepting their terms; the plugin documents where to put them. Using the models in commercial production requires a commercial license from Meshcapade regardless of this plugin being free.
+Two separate licenses apply — the plugin's and the body models':
 
-Plugin license: GPL-3.0 for the Blender extension (required for Blender API linkage), Apache-2.0 for the contracts, core, and engine-bridge libraries — decided in [ADR-0006](doc/adr/0006-license-split-gpl-addon-apache-libraries.md).
+- **PoseCap itself** is free and open source: GPL-3.0 for the Blender extension (required for Blender API linkage), Apache-2.0 for the contracts, core, and engine-bridge libraries — decided in [ADR-0006](doc/adr/0006-license-split-gpl-addon-apache-libraries.md).
+- **The SMPL, SMPL-X, and FLAME body models** are licensed by the Max Planck Institute for research (non-commercial) use. They are **never distributed with PoseCap** — not in this repo, not in the installer. Each user registers on the official MPI sites and accepts the license terms personally; the plugin's setup wizard then automates the download using that user's own account credentials. The [illustrated setup guide](doc/guides/smplx-model-setup.md) walks through it.
+- **Commercial production use of the body models** requires a commercial license from [Meshcapade](https://meshcapade.com), independent of the plugin itself being free.
 
 ## Roadmap
 
