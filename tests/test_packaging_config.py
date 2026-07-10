@@ -57,4 +57,4 @@ def test_bootstrap_never_downloads_licensed_models() -> None:
         assert "smpl" not in line and "flame" not in line, line
     # Instruction text must exist so the user knows the manual step.
     assert "smpl-x" in bootstrap
-    assert "cannot be shipped or" in bootstrap
+    assert "cannot ship with posecap" in bootstrap
