@@ -237,6 +237,40 @@ Final proof through the real addon path (dirty child env, fixture video):
 in PR "fix(addon): live apply-path fixes + wheel dev-stamping (0.1.1)";
 released as v0.1.1.
 
+### 2026-07-10 (armature-axes root cause — June inverted-arm finding closed)
+
+The 2026-07-05 diagnostic had already pinned the core math to Dean's POC path
+and pointed suspicion at the target armature's rest pose / bone local axes.
+Confirmed today: the June smoke armature was built with bone tails pointing at
+children, so every pose bone had different local axes and the stream's SMPL-X
+parent-relative rotations applied in the wrong frames. The pipeline
+(engine → TCP → core planning → bpy writes) was never at fault.
+
+Geometric retest (headless Blender 5.0.1, synthetic `left_shoulder` payloads
+through the public `core.plan_pose_application()` path, orientation fix off,
+measuring the left elbow's world position):
+
+* Corrected SMPL-X-convention rig (all bones +Y in SMPL-X space, roll 0,
+  object rotated X+90°): +z 90° raises the elbow `delta=(-0.260, 0, +0.260)`
+  and +y 90° swings it behind the body `delta=(-0.260, +0.260, 0)` — both
+  exactly what SMPL-X semantics dictate.
+* June-style tails-at-children rig, same payloads: the +z probe coincides
+  (Blender roll-0 keeps local z near global z for bones in the x-y plane —
+  why some moves looked fine), but the +y probe leaves the elbow frozen
+  `delta=(0, 0, 0)`: the rotation spins the arm about its own axis. Wrong
+  local frames reproduced deterministically.
+
+Visual HITL evidence on top: today's live-demo composite (60s GUI stream,
+dance fixture) tracks the dancer's asymmetric arm/leg moves correctly on the
+corrected rig — no inversion. The retest script is
+`retest_inverted_arm.py` (session scratchpad); the binding convention is now
+documented in `doc/workflows.md` § "Target armature requirements".
+
+Also recorded for the release FPS gate: under GUI viewport + screen-recording
+load the engine consumed the file source at ~21.1 FPS (loop-wrap timing over
+three 10s loops), vs 22.6-23.4 FPS headless on the same RTX 3080. Sustained-30
+measurements must account for viewport load.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

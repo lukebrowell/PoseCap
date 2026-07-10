@@ -107,6 +107,28 @@ sequenceDiagram
     end
 ```
 
+## Target armature requirements
+
+The stream carries SMPL-X parent-relative rotations; the addon writes them as
+pose-bone local quaternions. That only lands in the right space when every
+pose bone's local axes equal its SMPL-X joint frame. The binding convention
+(the same one the SMPL/Meshcapade addon family uses):
+
+* Bone names match the SMPL-X joint names (`pelvis`, `left_hip`, …,
+  `right_wrist`); unnamed extras are ignored.
+* In the armature's rest pose, every bone points along **+Y of SMPL-X space**
+  (y-up, x = subject's left, z = toward viewer) with **roll 0**. Bone length
+  is free; tails do NOT need to touch children.
+* SMPL-X content is y-up: rotate the armature **object** (e.g. X+90°) to
+  stand in Blender's z-up world instead of editing bone axes.
+
+An armature whose bone tails point at their children (the classic
+connected-bones build) violates this: each bone gets its own local frame, and
+streamed rotations apply about the wrong axes. Symptom: some moves look right
+(axes that happen to coincide) while others invert or garble — arms are the
+usual tell. This was the root cause of the June 2026 "inverted arm" finding
+(task 0004); the geometric repro lives in that task's 2026-07-10 notes.
+
 ## World position
 
 There is deliberately no world-position flow: monocular pose estimation cannot recover trustworthy depth, so poses apply pelvis-locked. The POC's Arduino encoder-rig input was dropped from the product at review (too specific to one setup); the candidate future approach is software — camera tracking fused with pose estimation (PRD Roadmap: Later).
