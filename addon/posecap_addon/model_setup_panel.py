@@ -56,7 +56,7 @@ def draw_body_models_section(
     wm_group: Any,
     *,
     models_missing: bool,
-    session: ModelSetupSession | None,
+    session: Any | None,
 ) -> None:
     """Draw the one-time body-model setup UI when it is needed."""
     if session is not None and session.state in ("RUNNING", "WATCHING"):

@@ -32,7 +32,9 @@ def test_mpi_gated_assets_download_with_user_credentials_from_official_domains()
 def test_mean_params_is_the_only_public_download_and_is_hash_pinned() -> None:
     public = [asset for asset in REQUIRED_MODEL_ASSETS if isinstance(asset.source, PublicDownload)]
     assert [asset.target_path[-1] for asset in public] == ["smpl_mean_params.npz"]
-    assert len(public[0].source.sha256) == 64
+    source = public[0].source
+    assert isinstance(source, PublicDownload)
+    assert len(source.sha256) == 64
 
 
 def test_html_response_is_reported_as_a_sign_in_problem_not_a_traceback() -> None:

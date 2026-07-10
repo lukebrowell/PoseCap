@@ -1,6 +1,7 @@
 """Behavior tests for the Body Models panel section and its operators."""
 
 from types import SimpleNamespace
+from typing import Any
 
 import posecap_addon.model_setup_panel as model_setup_panel
 from posecap_addon.model_setup_panel import (
@@ -169,7 +170,7 @@ def test_setup_operator_starts_a_session_and_clears_the_password(monkeypatch) ->
     result = setup_cls().execute(_operator_context(wm_group))
 
     assert result == {"FINISHED"}
-    session = model_setup_panel.active_model_setup_session()
+    session: Any = model_setup_panel.active_model_setup_session()
     assert session is not None and session.credential_calls
     credentials = session.credential_calls[0][1]
     assert credentials.email == "emmet@corridor.example"
@@ -211,7 +212,7 @@ def test_watch_operator_starts_the_downloads_watcher(monkeypatch) -> None:
     result = watch_cls().execute(_operator_context(wm_group))
 
     assert result == {"FINISHED"}
-    session = model_setup_panel.active_model_setup_session()
+    session: Any = model_setup_panel.active_model_setup_session()
     assert session is not None and session.watch_calls
     assert len(bpy_module.app.timers.registered) == 1
 
@@ -222,7 +223,7 @@ def test_poll_timer_stops_after_the_session_finishes(monkeypatch) -> None:
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
     setup_cls, _watch_cls = build_model_setup_classes(bpy_module)
     setup_cls().execute(_operator_context(wm_group))
-    session = model_setup_panel.active_model_setup_session()
+    session: Any = model_setup_panel.active_model_setup_session()
     poll = bpy_module.app.timers.registered[0]
 
     session.status_message = "Downloading…"

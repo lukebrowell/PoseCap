@@ -143,5 +143,6 @@ def _bone_names(armature: Any) -> tuple[str, ...]:
     bones: Any = armature.pose.bones
     keys = getattr(bones, "keys", None)
     if callable(keys):
-        return tuple(str(name) for name in keys())
+        names: Any = keys()
+        return tuple(str(name) for name in names)
     return tuple(str(getattr(bone, "name", "")) for bone in bones)

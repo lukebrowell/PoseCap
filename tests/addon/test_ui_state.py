@@ -5,6 +5,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import posecap_addon.panels
 from posecap_addon.engine_process import EngineEndpoint, EngineProcess
@@ -238,7 +239,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
     preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
     assert preferences_cls.bl_idname == ADDON_ID
     assert getattr(bpy.types.Scene, SCENE_PROPERTY_NAME)[0] == "PointerProperty"
-    assert bpy.types.WindowManager.posecap_model_setup[0] == "PointerProperty"
+    window_manager_type: Any = bpy.types.WindowManager
+    assert window_manager_type.posecap_model_setup[0] == "PointerProperty"
 
     unregister_blender_ui(bpy)
     unregister_blender_ui(bpy)
