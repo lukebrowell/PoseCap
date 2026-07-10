@@ -404,8 +404,8 @@ def _check_hf_weights(download_weights: bool) -> DoctorCheck:
         return DoctorCheck(
             "hf_weights",
             "warn",
-            "Pinned PEAR weights were not downloaded; rerun doctor with --download-weights "
-            "to check them.",
+            "AI model weights not verified — they download automatically on the "
+            "first Start Stream (~2.7 GB, one time).",
             {"revision": PEAR_MODELS_REVISION},
         )
     try:

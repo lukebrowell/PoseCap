@@ -168,6 +168,10 @@ def test_doctor_verifies_pinned_pear_revision(monkeypatch, tmp_path: Path) -> No
     assert checks["pear_checkout"]["status"] == "ok"
     assert checks["pear_assets"]["status"] == "error"
     assert checks["hf_weights"]["status"] == "warn"
+    message = str(checks["hf_weights"]["message"])
+    # End-user language: reached a non-technical user via the Doctor shortcut.
+    assert "--download-weights" not in message
+    assert "first" in message.lower() and "2.7 GB" in message
 
 
 def test_doctor_reports_missing_pear_mean_params_asset(monkeypatch, tmp_path: Path) -> None:
