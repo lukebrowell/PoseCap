@@ -1,0 +1,450 @@
+"""Guided setup for the licensed SMPL-X body models (task 0010).
+
+Automates everything around the one legally required manual step: the user
+registers on the official MPI sites (that registration is the license
+acceptance) and their credentials are used in memory only to download the
+pinned files straight from the official endpoint. Nothing is bundled,
+persisted, or fetched anonymously.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import shutil
+import subprocess
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import zipfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from threading import Thread
+
+from posecap_contracts import (
+    MPI_DOWNLOAD_URL,
+    REQUIRED_MODEL_ASSETS,
+    ModelAsset,
+    MpiDownload,
+    PublicDownload,
+)
+from posecap_contracts.model_assets import download_failure_reason
+
+# fetch(url, post_data, sink_path, progress(bytes_done, bytes_total_or_zero))
+ProgressCallback = Callable[[int, int], None]
+Fetcher = Callable[[str, "bytes | None", Path, ProgressCallback], None]
+StatusCallback = Callable[[str], None]
+
+_DOWNLOAD_CHUNK_BYTES = 1024 * 256
+_VALIDATION_HEAD_BYTES = 64 * 1024
+
+
+class ModelSetupError(RuntimeError):
+    """A model-setup failure with a user-facing message."""
+
+
+@dataclass(frozen=True)
+class MpiCredentials:
+    """The user's own MPI-site login, held in memory only.
+
+    repr/str never include the password so it cannot leak through logs or
+    error messages.
+    """
+
+    email: str
+    password: str = field(repr=False)
+
+    def __str__(self) -> str:
+        return f"MpiCredentials(email={self.email!r})"
+
+
+@dataclass(frozen=True)
+class InstallReport:
+    """File names placed into the PEAR checkout by a setup run."""
+
+    installed: tuple[str, ...]
+
+
+def missing_model_assets(
+    pear_root: Path,
+    assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
+) -> tuple[ModelAsset, ...]:
+    """Return the required model assets absent from the PEAR checkout."""
+    return tuple(asset for asset in assets if not pear_root.joinpath(*asset.target_path).is_file())
+
+
+def install_missing_models(
+    pear_root: Path,
+    credentials: MpiCredentials,
+    *,
+    fetch: Fetcher | None = None,
+    status: StatusCallback | None = None,
+    assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
+) -> InstallReport:
+    """Download and place every missing model with the user's own credentials.
+
+    One fetch per unique source archive; every placement is validated before
+    it lands and written atomically. Raises ModelSetupError with a
+    user-facing message on any failure, leaving no partial files behind.
+    """
+    fetch_callable = fetch or _urllib_fetch
+    report_status = status or (lambda _message: None)
+    missing = missing_model_assets(pear_root, assets)
+    targets_by_source: dict[MpiDownload | PublicDownload, list[ModelAsset]] = {}
+    for asset in missing:
+        targets_by_source.setdefault(asset.source, []).append(asset)
+
+    installed: list[str] = []
+    staging_dir = Path(tempfile.mkdtemp(prefix="posecap-models-"))
+    try:
+        for source, targets in targets_by_source.items():
+            file_name = _source_file_name(source)
+            report_status(f"Downloading {file_name}…")
+            payload_path = staging_dir / file_name
+            url, post_data = _request_for(source, credentials)
+            fetch_callable(url, post_data, payload_path, _noop_progress)
+            report_status(f"Installing {file_name}…")
+            installed.extend(_place_targets(pear_root, source, targets, payload_path))
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+    return InstallReport(installed=tuple(installed))
+
+
+def find_downloaded_model_archives(
+    downloads_dir: Path,
+    pear_root: Path,
+    assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
+) -> tuple[Path, ...]:
+    """Return recognized model downloads whose targets are still missing."""
+    useful_names = {
+        _source_file_name(asset.source)
+        for asset in missing_model_assets(pear_root, assets)
+        if isinstance(asset.source, MpiDownload)
+    }
+    if not downloads_dir.is_dir():
+        return ()
+    return tuple(sorted(path for path in downloads_dir.iterdir() if path.name in useful_names))
+
+
+def install_from_downloaded_archive(
+    pear_root: Path,
+    archive_path: Path,
+    assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
+) -> InstallReport:
+    """Install every missing target served by a manually downloaded archive."""
+    targets = [
+        asset
+        for asset in missing_model_assets(pear_root, assets)
+        if isinstance(asset.source, MpiDownload)
+        and _source_file_name(asset.source) == archive_path.name
+    ]
+    if not targets:
+        return InstallReport(installed=())
+    installed = _place_targets(pear_root, targets[0].source, targets, archive_path)
+    return InstallReport(installed=tuple(installed))
+
+
+def _noop_progress(_bytes_done: int, _bytes_total: int) -> None:
+    return None
+
+
+def _source_file_name(source: MpiDownload | PublicDownload) -> str:
+    if isinstance(source, MpiDownload):
+        return source.sfile
+    return source.url.rsplit("/", 1)[-1]
+
+
+def _request_for(
+    source: MpiDownload | PublicDownload,
+    credentials: MpiCredentials,
+) -> tuple[str, bytes | None]:
+    if isinstance(source, MpiDownload):
+        query = urllib.parse.urlencode(
+            {"domain": source.domain, "sfile": source.sfile, "resume": "1"}
+        )
+        post_data = urllib.parse.urlencode(
+            {"username": credentials.email, "password": credentials.password}
+        ).encode("ascii")
+        return f"{MPI_DOWNLOAD_URL}?{query}", post_data
+    return source.url, None
+
+
+def _place_targets(
+    pear_root: Path,
+    source: MpiDownload | PublicDownload,
+    targets: list[ModelAsset],
+    payload_path: Path,
+) -> list[str]:
+    _reject_html_payload(targets[0], payload_path)
+    if isinstance(source, PublicDownload):
+        _verify_public_hash(source, targets[0], payload_path)
+    extraction_dir = Path(tempfile.mkdtemp(prefix="posecap-extract-"))
+    try:
+        member_suffix = getattr(source, "archive_member_suffix", None)
+        if member_suffix is not None:
+            payload_path = _extract_member(payload_path, member_suffix, targets[0], extraction_dir)
+        installed = []
+        for asset in targets:
+            _validate_payload(asset, payload_path)
+            target = pear_root.joinpath(*asset.target_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(target.name + ".part")
+            shutil.copyfile(payload_path, temporary)
+            os.replace(temporary, target)
+            installed.append(asset.target_path[-1])
+        return installed
+    finally:
+        shutil.rmtree(extraction_dir, ignore_errors=True)
+
+
+def _reject_html_payload(asset: ModelAsset, payload_path: Path) -> None:
+    head = _read_head(payload_path)
+    stripped = head.lstrip()[:16].lower()
+    if stripped.startswith((b"<!doctype", b"<html", b"<head", b"<body")):
+        reason = download_failure_reason(asset, head, payload_path.stat().st_size)
+        raise ModelSetupError(reason or "The download returned a web page, not the file.")
+
+
+def _verify_public_hash(source: PublicDownload, asset: ModelAsset, payload_path: Path) -> None:
+    digest = hashlib.sha256()
+    with payload_path.open("rb") as payload:
+        for chunk in iter(lambda: payload.read(_DOWNLOAD_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != source.sha256:
+        file_name = asset.target_path[-1]
+        raise ModelSetupError(
+            f"The downloaded {file_name} did not match its expected checksum. Please try again."
+        )
+
+
+def _extract_member(
+    payload_path: Path,
+    member_suffix: str,
+    asset: ModelAsset,
+    extraction_dir: Path,
+) -> Path:
+    file_name = asset.target_path[-1]
+    try:
+        with zipfile.ZipFile(payload_path) as archive:
+            member = next(
+                (name for name in archive.namelist() if name.endswith(member_suffix)),
+                None,
+            )
+            if member is None:
+                raise ModelSetupError(
+                    f"The downloaded archive does not contain {file_name}. "
+                    "Please retry, or download it manually from the official site."
+                )
+            extracted = extraction_dir / file_name
+            with archive.open(member) as source, extracted.open("wb") as sink:
+                shutil.copyfileobj(source, sink)
+            return extracted
+    except zipfile.BadZipFile as exc:
+        raise ModelSetupError(
+            f"The downloaded archive for {file_name} is corrupted. Please try again."
+        ) from exc
+
+
+def _validate_payload(asset: ModelAsset, payload_path: Path) -> None:
+    reason = download_failure_reason(asset, _read_head(payload_path), payload_path.stat().st_size)
+    if reason is not None:
+        raise ModelSetupError(reason)
+
+
+def _read_head(payload_path: Path) -> bytes:
+    with payload_path.open("rb") as payload:
+        return payload.read(_VALIDATION_HEAD_BYTES)
+
+
+CommandRunner = Callable[..., object]
+
+
+def verify_models_with_doctor(
+    pear_root: Path,
+    engine_executable: str,
+    *,
+    run: CommandRunner | None = None,
+) -> str:
+    """Run the engine doctor's asset check and return a user-facing summary.
+
+    Degrades to a files-present message when the engine cannot be launched —
+    the wizard has already validated every placed file at that point.
+    """
+    runner = run or _run_doctor_process
+    try:
+        completed = runner(
+            [engine_executable, "doctor", "--pear-root", str(pear_root)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120.0,
+        )
+        report = json.loads(getattr(completed, "stdout", ""))
+        checks = report.get("checks", []) if isinstance(report, dict) else []
+        asset_check = next((check for check in checks if check.get("name") == "pear_assets"), None)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "Model files are in place (doctor could not be run to double-check)."
+    if asset_check is None:
+        return "Model files are in place (doctor could not be run to double-check)."
+    if asset_check.get("status") == "ok":
+        return "Models installed — doctor check passed."
+    return str(asset_check.get("message", "Doctor reported a model problem."))
+
+
+def _run_doctor_process(command: list[str], **kwargs: object) -> object:
+    return subprocess.run(command, **kwargs)  # type: ignore[call-overload]  # kwargs forwarded verbatim
+
+
+SessionState = str  # "IDLE" | "RUNNING" | "WATCHING" | "DONE" | "FAILED"
+
+
+class ModelSetupSession:
+    """One guided-setup run, polled from Blender's timer thread.
+
+    Credential installs run on a daemon thread (downloads take minutes and
+    must not block the UI); the Downloads-folder watcher is synchronous per
+    tick. Status strings are user-facing.
+    """
+
+    def __init__(
+        self,
+        *,
+        fetch: Fetcher | None = None,
+        assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
+        verify: Callable[[Path], str] | None = None,
+    ) -> None:
+        self._fetch = fetch
+        self._assets = assets
+        self._verify = verify
+        self._thread: Thread | None = None
+        self._pear_root: Path | None = None
+        self._downloads_dir: Path | None = None
+        self.state: SessionState = "IDLE"
+        self.status_message = ""
+
+    def start_credential_install(self, pear_root: Path, credentials: MpiCredentials) -> None:
+        """Download every missing model with the user's credentials, in background."""
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self.state = "RUNNING"
+        self.status_message = "Starting download…"
+        self._thread = Thread(
+            target=self._run_credential_install,
+            args=(pear_root, credentials),
+            name="posecap-model-setup",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def start_watching(self, pear_root: Path, downloads_dir: Path) -> None:
+        """Watch the Downloads folder; installs happen on tick()."""
+        self._pear_root = pear_root
+        self._downloads_dir = downloads_dir
+        self.state = "WATCHING"
+        self.status_message = "Watching your Downloads folder…"
+
+    def tick(self) -> None:
+        """Install any recognized finished download; finish when nothing is missing."""
+        if self.state != "WATCHING":
+            return
+        pear_root, downloads_dir = self._pear_root, self._downloads_dir
+        if pear_root is None or downloads_dir is None:
+            return
+        for archive in find_downloaded_model_archives(downloads_dir, pear_root, self._assets):
+            try:
+                report = install_from_downloaded_archive(pear_root, archive, self._assets)
+            except ModelSetupError as exc:
+                # The file may still be downloading — report and keep watching.
+                self.status_message = str(exc)
+                continue
+            if report.installed:
+                self.status_message = f"Installed {', '.join(report.installed)}"
+        self._finish_watch_if_complete(pear_root)
+
+    def join(self, *, timeout_seconds: float) -> None:
+        """Wait for a background credential install (tests and teardown)."""
+        if self._thread is not None:
+            self._thread.join(timeout=timeout_seconds)
+
+    def _run_credential_install(self, pear_root: Path, credentials: MpiCredentials) -> None:
+        try:
+            install_missing_models(
+                pear_root,
+                credentials,
+                fetch=self._fetch,
+                status=self._set_status,
+                assets=self._assets,
+            )
+        except ModelSetupError as exc:
+            self.state = "FAILED"
+            self.status_message = str(exc)
+            return
+        except Exception:
+            self.state = "FAILED"
+            self.status_message = (
+                "Model setup failed unexpectedly — see the PoseCap log for details."
+            )
+            logging.getLogger(__name__).exception("model setup failed")
+            return
+        self._complete(pear_root)
+
+    def _finish_watch_if_complete(self, pear_root: Path) -> None:
+        remaining = missing_model_assets(pear_root, self._assets)
+        if any(isinstance(asset.source, MpiDownload) for asset in remaining):
+            return
+        if remaining:
+            # Only the public, non-MPI-gated file is left — fetch it directly.
+            try:
+                install_missing_models(
+                    pear_root,
+                    MpiCredentials(email="", password=""),
+                    fetch=self._fetch,
+                    status=self._set_status,
+                    assets=self._assets,
+                )
+            except ModelSetupError as exc:
+                self.status_message = str(exc)
+                return
+        self._complete(pear_root)
+
+    def _complete(self, pear_root: Path) -> None:
+        if missing_model_assets(pear_root, self._assets):
+            self.state = "FAILED"
+            self.status_message = "Some model files are still missing."
+            return
+        self.state = "DONE"
+        self.status_message = "Models installed."
+        if self._verify is not None:
+            self.status_message = self._verify(pear_root)
+
+    def _set_status(self, message: str) -> None:
+        self.status_message = message
+
+
+def _urllib_fetch(
+    url: str,
+    post_data: bytes | None,
+    sink_path: Path,
+    progress: ProgressCallback,
+) -> None:
+    request = urllib.request.Request(url, data=post_data)
+    try:
+        with urllib.request.urlopen(request, timeout=60.0) as response:
+            total = int(response.headers.get("Content-Length") or 0)
+            done = 0
+            with sink_path.open("wb") as sink:
+                while True:
+                    chunk = response.read(_DOWNLOAD_CHUNK_BYTES)
+                    if chunk == b"":
+                        return
+                    sink.write(chunk)
+                    done += len(chunk)
+                    progress(done, total)
+    except urllib.error.URLError as exc:
+        raise ModelSetupError(
+            "Could not reach the download server. Check your internet connection and try again."
+        ) from exc

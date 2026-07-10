@@ -14,10 +14,17 @@ from posecap_core import PoseSmoother
 from .apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
+from .model_setup_panel import (
+    active_model_setup_session,
+    build_model_setup_classes,
+    draw_body_models_section,
+    models_missing,
+)
 from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
 SCENE_PROPERTY_NAME = "posecap"
+WM_MODEL_SETUP_PROPERTY_NAME = "posecap_model_setup"
 _MANIFEST_ADDON_ID = "posecap"
 ADDON_ID = (
     __package__.removesuffix(".posecap_addon")
@@ -120,6 +127,12 @@ def register_blender_ui(bpy_module: Any) -> None:
         SCENE_PROPERTY_NAME,
         bpy_module.props.PointerProperty(type=classes[0]),
     )
+    model_setup_group = next(cls for cls in classes if cls.__name__ == "POSECAP_PG_ModelSetup")
+    setattr(
+        bpy_module.types.WindowManager,
+        WM_MODEL_SETUP_PROPERTY_NAME,
+        bpy_module.props.PointerProperty(type=model_setup_group),
+    )
     _REGISTERED_CLASSES = classes
 
 
@@ -129,6 +142,8 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     _stop_active_session(bpy_module)
     if hasattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME):
         delattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME)
+    if hasattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME):
+        delattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME)
     if not _REGISTERED_CLASSES:
         return
     for cls in reversed(_REGISTERED_CLASSES):
@@ -280,15 +295,61 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_category = "PoseCap"
 
         def draw(self, context: Any) -> None:
-            draw_live_stream_panel(self.layout, _settings_from_context(context))
+            _draw_main_panel(self.layout, context)
+
+    class POSECAP_PG_ModelSetup(bpy_module.types.PropertyGroup):
+        __slots__ = ()
+
+    POSECAP_PG_ModelSetup.__annotations__ = {
+        # WindowManager properties are never saved into .blend files, and the
+        # password field is cleared as soon as the download starts.
+        "mpi_email": bpy_module.props.StringProperty(
+            name="Email",
+            description="Email of your account on the official model sites",
+            default="",
+        ),
+        "mpi_password": bpy_module.props.StringProperty(
+            name="Password",
+            description=(
+                "Password of your account on the official model sites — "
+                "used in memory only, never saved or logged"
+            ),
+            default="",
+            subtype="PASSWORD",
+        ),
+        "status": bpy_module.props.StringProperty(
+            name="Status",
+            description="Current model setup status",
+            default="",
+        ),
+    }
+
+    setup_operator_classes = build_model_setup_classes(bpy_module)
 
     return (
         POSECAP_PG_LiveStreamSettings,
+        POSECAP_PG_ModelSetup,
         POSECAP_AP_AddonPreferences,
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
+        *setup_operator_classes,
         POSECAP_PT_LiveStream,
     )
+
+
+def _draw_main_panel(layout: Any, context: Any) -> None:
+    settings = _settings_from_context(context)
+    wm_group = getattr(context.window_manager, WM_MODEL_SETUP_PROPERTY_NAME, None)
+    if wm_group is not None:
+        preferences = _addon_preferences(context)
+        pear_root = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
+        draw_body_models_section(
+            layout,
+            wm_group,
+            models_missing=models_missing(pear_root),
+            session=active_model_setup_session(),
+        )
+    draw_live_stream_panel(layout, settings)
 
 
 def _settings_from_context(context: Any) -> Any:

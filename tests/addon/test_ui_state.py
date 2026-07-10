@@ -107,24 +107,32 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
 
     assert [cls.__name__ for cls in bpy.utils.registered] == [
         "POSECAP_PG_LiveStreamSettings",
+        "POSECAP_PG_ModelSetup",
         "POSECAP_AP_AddonPreferences",
         "POSECAP_OT_StartStream",
         "POSECAP_OT_StopStream",
+        "POSECAP_OT_SetupBodyModels",
+        "POSECAP_OT_WatchModelDownloads",
         "POSECAP_PT_LiveStream",
     ]
     preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
     assert preferences_cls.bl_idname == ADDON_ID
     assert getattr(bpy.types.Scene, SCENE_PROPERTY_NAME)[0] == "PointerProperty"
+    assert bpy.types.WindowManager.posecap_model_setup[0] == "PointerProperty"
 
     unregister_blender_ui(bpy)
     unregister_blender_ui(bpy)
 
     assert not hasattr(bpy.types.Scene, SCENE_PROPERTY_NAME)
+    assert not hasattr(bpy.types.WindowManager, "posecap_model_setup")
     assert [cls.__name__ for cls in bpy.utils.unregistered] == [
         "POSECAP_PT_LiveStream",
+        "POSECAP_OT_WatchModelDownloads",
+        "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_StopStream",
         "POSECAP_OT_StartStream",
         "POSECAP_AP_AddonPreferences",
+        "POSECAP_PG_ModelSetup",
         "POSECAP_PG_LiveStreamSettings",
     ]
 
@@ -812,6 +820,9 @@ class _FakeBpyTypes:
         pass
 
     class Scene:
+        pass
+
+    class WindowManager:
         pass
 
 
