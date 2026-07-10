@@ -4,6 +4,7 @@ import importlib
 import logging
 import os
 import tempfile
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
@@ -40,6 +41,18 @@ ADDON_ID = (
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: "_LiveStreamSession | None" = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
+
+# First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
+# first frame; without this the panel sits on "Starting" for minutes and a
+# non-technical user assumes it hung (Corridor field report, 2026-07-10).
+_LONG_START_SECONDS = 10.0
+_LONG_START_MESSAGE = (
+    "Still starting — first run downloads the AI model (~2.7 GB), this can take several minutes"
+)
+
+
+def _now() -> float:
+    return time.monotonic()
 
 
 class _LiveStreamSettings(Protocol):
@@ -679,6 +692,7 @@ class _LiveStreamSession:
         self._client = client
         self._timer = timer
         self._stopped = False
+        self._started_at = _now()
         self.timer_callback: Callable[[], float | None] = self._tick
 
     def _tick(self) -> float | None:
@@ -706,7 +720,7 @@ class _LiveStreamSession:
                 self._settings.status_message = f"Stream stopped: {stream_error}"
             return None
         try:
-            return self._timer.tick()
+            result = self._timer.tick()
         except Exception as exc:
             # bpy silently unregisters a timer whose callback raises; without
             # this the panel keeps saying Streaming over a dead apply loop
@@ -716,6 +730,19 @@ class _LiveStreamSession:
             self._settings.lifecycle_state = "STOPPED"
             self._settings.status_message = f"Apply failed: {exc} (see posecap-addon.log)"
             return None
+        self._flag_long_start_if_stalled()
+        return result
+
+    def _flag_long_start_if_stalled(self) -> None:
+        """Explain the silent ~2.7 GB first-run weight download without faking detection."""
+        if self._settings.lifecycle_state != "STARTING":
+            return
+        if _now() - self._started_at < _LONG_START_SECONDS:
+            return
+        if self._settings.status_message == _LONG_START_MESSAGE:
+            return
+        self._settings.status_message = _LONG_START_MESSAGE
+        tag_view3d_redraw(self._bpy_module.context)
 
     def stop(self, *, unregister_timer: bool, bpy_module: Any) -> None:
         if self._stopped:

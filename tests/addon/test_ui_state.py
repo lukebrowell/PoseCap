@@ -354,6 +354,54 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         unregister_blender_ui(bpy)
 
 
+def test_starting_shows_first_run_download_hint_after_ten_seconds(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    clients: list[_FakeClient] = []
+    clock = {"t": 0.0}
+
+    monkeypatch.setattr(posecap_addon.panels, "_now", lambda: clock["t"], raising=False)
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: _FakeEngine(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        # No frame yet, still early: the panel keeps the plain "Starting".
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STARTING"
+        assert settings.status_message == "Starting"
+
+        # Past the threshold with still no frame: explain the first-run download.
+        clock["t"] = 11.0
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STARTING"
+        assert "2.7 GB" in settings.status_message
+        assert "download" in settings.status_message.lower()
+
+        # A frame finally arrives: normal streaming, the hint is gone.
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STREAMING"
+        assert settings.status_message == "Streaming"
+    finally:
+        unregister_blender_ui(bpy)
+
+
 def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty(
     monkeypatch,
 ) -> None:
