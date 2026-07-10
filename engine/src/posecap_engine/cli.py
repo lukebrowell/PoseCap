@@ -15,6 +15,7 @@ from .errors import EngineError
 from .frame_sources import FixtureFrameSource
 from .logging_config import configure_logging
 from .pear_adapter import CameraSource, LiveSource, PearFrameSource, VideoFileSource
+from .preview import PreviewFrameWriter
 from .stream_server import serve_once
 from .watchdog import ParentWatchdog
 
@@ -70,6 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     live.add_argument("--parent-pid", type=int)
     live.add_argument("--log-file", type=Path)
+    live.add_argument(
+        "--preview-path",
+        type=Path,
+        help="write the current frame here as a small JPEG for the addon's live preview",
+    )
+    live.add_argument("--preview-interval", type=int, default=4)
     live.set_defaults(func=_run_live)
 
     doctor = subparsers.add_parser("doctor", help="check PEAR runtime readiness")
@@ -135,7 +142,18 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
         yolo_threshold=args.yolo_threshold,
         crop_ratio=args.crop_ratio,
         yolo_model=args.yolo_model,
+        preview_writer=_build_preview_writer(args),
     )
+
+
+def _build_preview_writer(args: argparse.Namespace) -> PreviewFrameWriter | None:
+    preview_path = getattr(args, "preview_path", None)
+    if preview_path is None:
+        return None
+    from . import pear_adapter
+
+    cv2 = pear_adapter._import_optional("cv2", "OpenCV for the live preview")
+    return PreviewFrameWriter(preview_path, cv2, interval=max(1, int(args.preview_interval)))
 
 
 def _parse_source(source: str | None, camera_index: int) -> LiveSource:

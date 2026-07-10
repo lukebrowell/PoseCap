@@ -41,6 +41,13 @@ ADDON_ID = (
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: "_LiveStreamSession | None" = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
+_STREAMING_STATES = frozenset({"STARTING", "STREAMING", "RECORDING", "RECONNECTING", "WARNING"})
+
+# Live source preview: the engine drops the current frame here, the panel shows
+# it. Set while a preview-enabled stream runs; the previews collection holds the
+# loaded thumbnail (created at register on real bpy, None under the test fakes).
+_PREVIEW_COLLECTION: Any = None
+_PREVIEW_PATH: str = ""
 
 # First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
 # first frame; without this the panel sits on "Starting" for minutes and a
@@ -54,18 +61,6 @@ _LONG_START_MESSAGE = (
 
 def _now() -> float:
     return time.monotonic()
-
-
-def _open_path(path: str) -> None:
-    """Open a file with the OS default application (the video Preview button)."""
-    opener = getattr(os, "startfile", None)
-    if opener is not None:
-        opener(path)  # Windows — the project's target platform
-        return
-    import webbrowser
-    from pathlib import Path
-
-    webbrowser.open(Path(path).resolve().as_uri())
 
 
 class _LiveStreamSettings(Protocol):
@@ -92,6 +87,7 @@ class _LiveStreamSettings(Protocol):
     character_mapping_json: str
     source_kind: str
     video_source: str
+    preview_enabled: bool
 
 
 class _AddonPreferences(Protocol):
@@ -156,11 +152,26 @@ def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
     column.prop(settings, "source_kind", text="Source")
     if str(settings.source_kind) == "VIDEO":
         column.prop(settings, "video_source", text="Video File")
-        preview = column.row()
-        preview.enabled = str(settings.video_source).strip() != ""
-        preview.operator("posecap.preview_source", text="Preview Video", icon="PLAY")
+    else:
+        column.prop(settings, "camera_index", text="Camera")
+    column.prop(settings, "preview_enabled")
+    _draw_source_preview(column, settings)
+
+
+def _draw_source_preview(column: Any, settings: _LiveStreamSettings) -> None:
+    """Show the live source thumbnail in the panel while streaming (bpy only)."""
+    if _PREVIEW_COLLECTION is None or not bool(settings.preview_enabled):
         return
-    column.prop(settings, "camera_index", text="Camera")
+    if settings.lifecycle_state not in _STREAMING_STATES:
+        return
+    path = Path(_PREVIEW_PATH)
+    if _PREVIEW_PATH == "" or not path.is_file():
+        return
+    # previews cache by name; reload each draw so the thumbnail advances.
+    with suppress(KeyError):
+        del _PREVIEW_COLLECTION["source"]
+    preview = _PREVIEW_COLLECTION.load("source", str(path), "IMAGE")
+    column.template_icon(icon_value=preview.icon_id, scale=8.0)
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
@@ -199,6 +210,7 @@ def register_blender_ui(bpy_module: Any) -> None:
         WM_MODEL_SETUP_PROPERTY_NAME,
         bpy_module.props.PointerProperty(type=model_setup_group),
     )
+    _create_preview_collection(bpy_module)
     _REGISTERED_CLASSES = classes
 
 
@@ -206,6 +218,7 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     """Unregister PoseCap UI classes against a bpy-like module."""
     global _REGISTERED_CLASSES
     _stop_active_session(bpy_module)
+    _remove_preview_collection(bpy_module)
     if hasattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME):
         delattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME)
     if hasattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME):
@@ -215,6 +228,21 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     for cls in reversed(_REGISTERED_CLASSES):
         bpy_module.utils.unregister_class(cls)
     _REGISTERED_CLASSES = ()
+
+
+def _create_preview_collection(bpy_module: Any) -> None:
+    global _PREVIEW_COLLECTION
+    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
+    if previews is not None and _PREVIEW_COLLECTION is None:
+        _PREVIEW_COLLECTION = previews.new()
+
+
+def _remove_preview_collection(bpy_module: Any) -> None:
+    global _PREVIEW_COLLECTION
+    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
+    if previews is not None and _PREVIEW_COLLECTION is not None:
+        previews.remove(_PREVIEW_COLLECTION)
+    _PREVIEW_COLLECTION = None
 
 
 def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
@@ -380,6 +408,11 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             default="",
             subtype="FILE_PATH",
         ),
+        "preview_enabled": bpy_module.props.BoolProperty(
+            name="Show Preview",
+            description="Show the live camera/video frame in this panel while streaming",
+            default=False,
+        ),
     }
 
     class POSECAP_AP_AddonPreferences(bpy_module.types.AddonPreferences):
@@ -430,25 +463,6 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         def execute(self, context: Any) -> set[str]:
             return _stop_live_stream(context, bpy_module)
 
-    class POSECAP_OT_PreviewSource(bpy_module.types.Operator):
-        bl_idname = "posecap.preview_source"
-        bl_label = "Preview Video"
-        bl_description = "Open the selected video file in your default player to check it"
-        bl_options = {"REGISTER"}
-
-        def execute(self, context: Any) -> set[str]:
-            settings = _settings_from_context(context)
-            path = str(settings.video_source).strip()
-            if path == "":
-                self.report({"ERROR"}, "Choose a video file first.")
-                return {"CANCELLED"}
-            try:
-                _open_path(path)
-            except OSError as exc:
-                self.report({"ERROR"}, f"Could not open the video: {exc}")
-                return {"CANCELLED"}
-            return {"FINISHED"}
-
     class POSECAP_PT_LiveStream(bpy_module.types.Panel):
         bl_label = "PoseCap"
         bl_idname = "POSECAP_PT_live_stream"
@@ -495,7 +509,6 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         POSECAP_AP_AddonPreferences,
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
-        POSECAP_OT_PreviewSource,
         *setup_operator_classes,
         *character_operator_classes,
         POSECAP_PT_LiveStream,
@@ -535,7 +548,10 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     engine = None
     try:
         preferences = _addon_preferences(context)
-        engine = start_engine_stream(_engine_command(settings, preferences))
+        preview_path = _prepare_preview_path(bpy_module, settings)
+        engine = start_engine_stream(
+            _engine_command(settings, preferences, preview_path=preview_path)
+        )
         client = TcpPoseStreamClient(
             engine.endpoint.host,
             engine.endpoint.port,
@@ -609,12 +625,28 @@ _INSTALLER_ENGINE_SUBPATH = ("PoseCap", "runtime", "venv", "Scripts", "posecap-e
 PathExists = Callable[[Path], bool]
 
 
+def _prepare_preview_path(bpy_module: Any, settings: _LiveStreamSettings) -> str:
+    """Pick the preview-frame file, clear any stale one, and remember it for draw."""
+    global _PREVIEW_PATH
+    if not bool(getattr(settings, "preview_enabled", False)):
+        _PREVIEW_PATH = ""
+        return ""
+    tempdir = str(getattr(bpy_module.app, "tempdir", "")).strip()
+    root = Path(tempdir) if tempdir != "" else Path(tempfile.gettempdir())
+    path = root / "posecap-source-preview.jpg"
+    with suppress(OSError):
+        path.unlink()
+    _PREVIEW_PATH = str(path)
+    return _PREVIEW_PATH
+
+
 def _engine_command(
     settings: _LiveStreamSettings,
     preferences: _AddonPreferences | None = None,
     *,
     environ: dict[str, str] | None = None,
     path_exists: PathExists | None = None,
+    preview_path: str | None = None,
 ) -> tuple[str, ...]:
     env = environ if environ is not None else dict(os.environ)
     exists = path_exists if path_exists is not None else (lambda path: path.exists())
@@ -649,6 +681,8 @@ def _engine_command(
         video_source = str(getattr(settings, "video_source", "")).strip()
         if video_source != "":
             command += ["--source", video_source]
+    if bool(getattr(settings, "preview_enabled", False)) and preview_path:
+        command += ["--preview-path", preview_path]
     return tuple(command)
 
 

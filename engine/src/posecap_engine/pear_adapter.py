@@ -110,6 +110,7 @@ class PearFrameSource:
         capture_factory: CaptureFactory | None = None,
         clock: Clock = time.time,
         max_camera_read_failures: int = _DEFAULT_MAX_CAMERA_READ_FAILURES,
+        preview_writer: Any = None,
     ) -> None:
         if max_camera_read_failures <= 0:
             raise ValueError("max_camera_read_failures must be positive")
@@ -126,6 +127,7 @@ class PearFrameSource:
         self._capture_factory = capture_factory or _open_live_capture
         self._clock = clock
         self._max_camera_read_failures = max_camera_read_failures
+        self._preview_writer = preview_writer
 
     def frames(self) -> Generator[PoseFrame, None, None]:
         _validate_external_checkout(self._config.pear_root)
@@ -149,6 +151,8 @@ class PearFrameSource:
                     continue
 
                 failed_reads = 0
+                if self._preview_writer is not None:
+                    self._preview_writer.offer(rgb_image)
                 captured_at = self._clock()
                 pose = runtime.infer(rgb_image)
                 if pose is None:

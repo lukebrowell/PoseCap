@@ -57,6 +57,28 @@ def test_pear_frame_source_emits_no_person_status_and_releases_capture(tmp_path:
     assert capture.released
 
 
+def test_pear_frame_source_offers_each_frame_to_the_preview_writer(tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    offered: list[object] = []
+    source = PearFrameSource(
+        pear_root,
+        source=CameraSource(0),
+        runtime_factory=lambda _config: _FakeRuntime([None, None]),
+        capture_factory=lambda _config: _FakeCapture(),
+        clock=_FakeClock([1.0, 2.0]),
+        preview_writer=SimpleNamespace(offer=offered.append),
+    )
+
+    frames = source.frames()
+    try:
+        next(frames)
+        next(frames)
+    finally:
+        frames.close()
+
+    assert len(offered) == 2  # one raw frame handed to the preview per read
+
+
 def test_pear_frame_source_emits_ok_frame_after_no_person(tmp_path: Path) -> None:
     pear_root = _pear_checkout(tmp_path)
     runtime = _FakeRuntime([None, _payload()])
