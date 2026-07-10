@@ -120,6 +120,14 @@ neck, head, collars — pelvis stays excluded when filtering, POC semantics)
 so the three checkboxes (Arms / Legs / Torso, all on by default = no
 filtering) can express every combination; wired into `PoseApplyTimer`.
 
+`/ad-review` follow-ups applied before release: (1) unchecking all three
+limb boxes now applies NOTHING (core `LimbFilter.apply_nothing`, empty
+whitelist) instead of silently driving the whole body — the all-False
+default still means "no filter"; (2) the retarget engine's placement in
+addon/ (vs core/ per ARCHITECTURE.md) and the `axis_angle_quaternion`
+duplication are logged as task 0011 (deferred: justified by the stdlib-only
+dev-CLI constraint, not a release blocker).
+
 Open: HITL screenshot pass of collapsed vs expanded panel for Ale.
 
 ## Definition of Done

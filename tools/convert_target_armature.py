@@ -7,13 +7,13 @@ installed) and keeps the historical CLI surface.
 
 Run inside Blender:
 
-    blender --background rig.blend --python tools/convert_target_armature.py \
+    blender --background character.blend --python tools/convert_target_armature.py \
         -- --output converted.blend [--mapping mapping.json] [--skip-tpose]
         [--bone-length 10.0] [--probe-tolerance 0.05]
 
 The default mapping targets the Unreal Engine humanoid skeleton. A custom
 mapping JSON maps SMPL-X joint names to armature bone names. Validated
-2026-07-10 on two Fortnite rigs (M_MED_Rebirth_Soldier, M_MED_Donut).
+2026-07-10 on two Fortnite armatures (M_MED_Rebirth_Soldier, M_MED_Donut).
 """
 
 from __future__ import annotations

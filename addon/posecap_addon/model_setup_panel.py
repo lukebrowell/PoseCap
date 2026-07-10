@@ -13,6 +13,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from .apply_timer import tag_view3d_redraw
 from .model_setup import (
     ModelSetupSession,
     MpiCredentials,
@@ -152,9 +153,13 @@ def _new_session(context: Any) -> ModelSetupSession:
     _ACTIVE_SESSION = ModelSetupSession(
         verify=partial(verify_models_with_doctor, engine_executable=engine_executable)
         if engine_executable != ""
-        else None,
+        else _verify_skipped,
     )
     return _ACTIVE_SESSION
+
+
+def _verify_skipped(_pear_root: Path) -> str:
+    return "Models installed (set the engine path to also run the doctor check)."
 
 
 def _start_session_poll(bpy_module: Any) -> None:
@@ -173,20 +178,14 @@ def _start_session_poll(bpy_module: Any) -> None:
     timers.register(poll, first_interval=_POLL_INTERVAL_SECONDS)
 
 
-def _publish_status(bpy_module: Any, session: ModelSetupSession) -> None:
+def _publish_status(bpy_module: Any, session: Any) -> None:
     context = getattr(bpy_module, "context", None)
     window_manager = getattr(context, "window_manager", None)
     wm_group = getattr(window_manager, "posecap_model_setup", None)
     if wm_group is not None:
         wm_group.status = session.status_message
-    _tag_panel_redraw(window_manager)
-
-
-def _tag_panel_redraw(window_manager: Any) -> None:
-    for window in getattr(window_manager, "windows", []):
-        for area in getattr(window.screen, "areas", []):
-            if area.type == "VIEW_3D":
-                area.tag_redraw()
+    if context is not None:
+        tag_view3d_redraw(context)
 
 
 def _resolve_pear_root(context: Any) -> str:

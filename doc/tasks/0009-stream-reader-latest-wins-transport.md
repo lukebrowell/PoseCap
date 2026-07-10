@@ -67,6 +67,15 @@ the draining reader a handful of cycles — asserted under 0.8 s, 5/5 runs
 stable locally. Existing reconnect / idle-gap / EOF / close tests stayed
 green untouched.
 
+`/ad-review` (Spec axis) noted a deliberate deviation from AC "decode-error
+semantics unchanged": intermediate frames superseded within one drain batch
+are dropped before `decode_pose_frame`, so a corrupt frame that a newer
+frame immediately supersedes no longer raises. This is inherent to
+latest-wins draining (decoding every stale frame would reintroduce the very
+per-frame cost the fix removes) and is accepted: the newest frame is always
+decoded, so a persistent decode fault still surfaces on the next cycle;
+transient corruption on a superseded frame is correctly irrelevant.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
