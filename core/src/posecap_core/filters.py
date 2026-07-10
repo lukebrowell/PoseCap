@@ -12,6 +12,12 @@ from .skeleton import SMPLX_JOINT_NAMES
 
 _FINGER_SUBSTRINGS = ("index", "middle", "pinky", "ring", "thumb")
 
+# Spine chain plus shoulder girdle and head; pelvis stays excluded whenever
+# any filter is active (POC behavior, kept deliberately).
+_TORSO_BONES = frozenset(
+    {"spine1", "spine2", "spine3", "neck", "head", "left_collar", "right_collar"}
+)
+
 _LEFT_FINGERS = frozenset(
     name
     for name in SMPLX_JOINT_NAMES
@@ -36,6 +42,7 @@ class LimbFilter:
     fingers_right: bool = False
     legs_left: bool = False
     legs_right: bool = False
+    torso: bool = False
 
     def is_active(self) -> bool:
         return any(
@@ -48,6 +55,7 @@ class LimbFilter:
                 self.fingers_right,
                 self.legs_left,
                 self.legs_right,
+                self.torso,
             )
         )
 
@@ -76,4 +84,6 @@ class LimbFilter:
             allowed.update(("left_hip", "left_knee", "left_ankle", "left_foot"))
         if self.legs_right:
             allowed.update(("right_hip", "right_knee", "right_ankle", "right_foot"))
+        if self.torso:
+            allowed.update(_TORSO_BONES)
         return frozenset(allowed)

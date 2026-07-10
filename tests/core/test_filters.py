@@ -59,7 +59,22 @@ def test_active_filter_never_includes_pelvis() -> None:
         fingers_right=True,
         legs_left=True,
         legs_right=True,
+        torso=True,
     )
     allowed = every_flag.allowed_bones()
     assert allowed is not None
     assert "pelvis" not in allowed
+
+
+def test_torso_whitelists_spine_neck_head_and_collars() -> None:
+    allowed = LimbFilter(torso=True).allowed_bones()
+    assert allowed == frozenset(
+        {"spine1", "spine2", "spine3", "neck", "head", "left_collar", "right_collar"}
+    )
+
+
+def test_torso_combines_with_arms() -> None:
+    allowed = LimbFilter(arms_left=True, arms_right=True, torso=True).allowed_bones()
+    assert allowed is not None
+    assert {"spine1", "neck", "left_shoulder", "right_wrist"} <= allowed
+    assert "left_hip" not in allowed
