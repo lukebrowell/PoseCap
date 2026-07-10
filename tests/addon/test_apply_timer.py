@@ -361,3 +361,47 @@ def _payload() -> PosePayload:
         expression=[0.0 for _ in range(NUM_EXPRESSION)],
         transl=[0.0, 0.0, 0.0],
     )
+
+
+def test_pose_apply_timer_with_smoother_attenuates_an_outlier_frame() -> None:
+    import math
+
+    from posecap_core import PoseSmoother
+
+    def payload_with_shoulder(z: float) -> PosePayload:
+        base = _payload()
+        body = [row[:] for row in base.body_pose]
+        body[15] = [0.0, 0.0, z]  # left_shoulder
+        return PosePayload(
+            global_orient=base.global_orient,
+            body_pose=body,
+            left_hand_pose=base.left_hand_pose,
+            right_hand_pose=base.right_hand_pose,
+            jaw_pose=base.jaw_pose,
+            betas=base.betas,
+            expression=base.expression,
+            transl=base.transl,
+        )
+
+    frames = [
+        PoseFrame(SCHEMA_VERSION, i, 100.0 + i / 30.0, "ok", payload_with_shoulder(0.0))
+        for i in range(30)
+    ]
+    frames.append(PoseFrame(SCHEMA_VERSION, 30, 101.0, "ok", payload_with_shoulder(0.35)))
+
+    def shoulder_angle(writer: _FakeWriter) -> float:
+        plan = writer.plans[-1]
+        quaternion = next(r.quaternion for r in plan.rotations if r.bone_name == "left_shoulder")
+        return 2.0 * math.acos(min(1.0, abs(float(quaternion[0]))))
+
+    smoothed_writer = _FakeWriter()
+    smoothed_timer = PoseApplyTimer(
+        _FakeStream(list(frames)), smoothed_writer, smoother=PoseSmoother()
+    )
+    raw_writer = _FakeWriter()
+    raw_timer = PoseApplyTimer(_FakeStream(list(frames)), raw_writer)
+    for _ in frames:
+        smoothed_timer.tick()
+        raw_timer.tick()
+
+    assert shoulder_angle(smoothed_writer) < shoulder_angle(raw_writer)

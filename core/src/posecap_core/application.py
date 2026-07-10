@@ -21,6 +21,7 @@ from .skeleton import (
     PELVIS,
     RIGHT_HAND_JOINT_NAMES,
 )
+from .smoothing import PoseSmoother
 
 KEYFRAME_DATA_PATH = "rotation_quaternion"
 
@@ -57,12 +58,21 @@ def plan_pose_application(
     apply_orientation_fix: bool = True,
     apply_world_position: bool = False,
     translation_origin: FloatArray | None = None,
+    smoother: PoseSmoother | None = None,
+    captured_at: float = 0.0,
 ) -> PoseApplication:
     """Build the bone-level plan for one frame.
 
     previous_quaternions maps bone name to the quaternion applied on the
     previous frame; each new quaternion is sign-matched against it to avoid
     360-degree pops (rotation.make_sign_compatible).
+
+    smoother, when given, runs each bone's quaternion through the One Euro
+    filter keyed by captured_at (the frame's capture timestamp in SECONDS).
+    The two travel together: passing a smoother while leaving captured_at at
+    its 0.0 default collapses every interval to the 1/30 s fallback and
+    silently degrades the adaptive cutoff — always feed the frame's real
+    capture time when smoothing.
 
     apply_world_position (experimental) converts the payload's camera-space
     translation into a Blender-space armature offset, relative to
@@ -81,21 +91,29 @@ def plan_pose_application(
         orient = np.asarray(payload.global_orient, dtype=np.float64)
         if apply_orientation_fix:
             orient = flip_global_orient(orient)
-        rotations.append(_bone_rotation(PELVIS, orient, previous))
+        rotations.append(_bone_rotation(PELVIS, orient, previous, smoother, captured_at))
         if apply_world_position:
             world_offset = _world_offset(payload.transl, translation_origin)
 
     for index, name in enumerate(BODY_JOINT_NAMES):
         if allowed is None or name in allowed:
-            rotations.append(_bone_rotation(name, payload.body_pose[index], previous))
+            rotations.append(
+                _bone_rotation(name, payload.body_pose[index], previous, smoother, captured_at)
+            )
 
     for index, name in enumerate(LEFT_HAND_JOINT_NAMES):
         if allowed is None or name in allowed:
-            rotations.append(_bone_rotation(name, payload.left_hand_pose[index], previous))
+            rotations.append(
+                _bone_rotation(name, payload.left_hand_pose[index], previous, smoother, captured_at)
+            )
 
     for index, name in enumerate(RIGHT_HAND_JOINT_NAMES):
         if allowed is None or name in allowed:
-            rotations.append(_bone_rotation(name, payload.right_hand_pose[index], previous))
+            rotations.append(
+                _bone_rotation(
+                    name, payload.right_hand_pose[index], previous, smoother, captured_at
+                )
+            )
 
     return PoseApplication(
         clear_bones=allowed, rotations=tuple(rotations), world_offset=world_offset
@@ -116,8 +134,12 @@ def _bone_rotation(
     name: str,
     axis_angle: FloatArray | list[float],
     previous: Mapping[str, FloatArray],
+    smoother: PoseSmoother | None,
+    captured_at: float,
 ) -> BoneRotation:
     quaternion = axis_angle_to_quaternion(np.asarray(axis_angle, dtype=np.float64))
+    if smoother is not None:
+        quaternion = np.asarray(smoother.smooth(name, quaternion, captured_at))
     reference = previous.get(name)
     if reference is not None:
         quaternion = make_sign_compatible(quaternion, reference)

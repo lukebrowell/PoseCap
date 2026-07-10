@@ -11,6 +11,7 @@ from posecap_core import (
     KEYFRAME_DATA_PATH,
     LimbFilter,
     PoseApplication,
+    PoseSmoother,
     PoseStream,
     plan_pose_application,
 )
@@ -40,6 +41,7 @@ class PoseApplyTimer:
         writer: PoseWriter,
         *,
         limb_filter: LimbFilter | None = None,
+        smoother: PoseSmoother | None = None,
         interval_seconds: float = 1.0 / 60.0,
         apply_orientation_fix: bool = True,
         apply_world_position: bool = False,
@@ -53,6 +55,7 @@ class PoseApplyTimer:
         self._stream = stream
         self._writer = writer
         self._limb_filter = limb_filter or LimbFilter()
+        self._smoother = smoother
         self._interval_seconds = interval_seconds
         self._apply_orientation_fix = apply_orientation_fix
         self._apply_world_position = apply_world_position
@@ -104,6 +107,8 @@ class PoseApplyTimer:
             apply_orientation_fix=self._apply_orientation_fix,
             apply_world_position=self._apply_world_position,
             translation_origin=self._translation_origin,
+            smoother=self._smoother,
+            captured_at=frame.captured_at,
         )
         self._writer.apply(plan, insert_keyframes=self._insert_keyframes)
         self._writer.tag_redraw()

@@ -24,6 +24,7 @@ from .skeleton import (
     RIGHT_HAND_JOINT_NAMES,
     SMPLX_JOINT_NAMES,
 )
+from .smoothing import PoseSmoother
 
 __all__ = [
     "BODY_JOINT_NAMES",
@@ -37,6 +38,7 @@ __all__ = [
     "PoseCapError",
     "LimbFilter",
     "PoseApplication",
+    "PoseSmoother",
     "PoseStream",
     "axis_angle_to_quaternion",
     "flip_global_orient",

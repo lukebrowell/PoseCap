@@ -155,3 +155,37 @@ def test_world_offset_skipped_when_limb_filter_active(payload: PosePayload) -> N
     """Filters exclude the pelvis; world position rides the pelvis, so it drops too."""
     plan = plan_pose_application(payload, LimbFilter(legs_left=True), apply_world_position=True)
     assert plan.world_offset is None
+
+
+def test_smoother_attenuates_an_outlier_frame_through_the_plan(payload: PosePayload) -> None:
+    from posecap_core import PoseSmoother
+
+    smoother = PoseSmoother()
+    steady = payload
+    spike = PosePayload(
+        global_orient=steady.global_orient,
+        body_pose=[
+            [row[0], row[1], row[2] + (0.35 if i == 15 else 0.0)]
+            for i, row in enumerate(steady.body_pose)
+        ],
+        left_hand_pose=steady.left_hand_pose,
+        right_hand_pose=steady.right_hand_pose,
+        jaw_pose=steady.jaw_pose,
+        betas=steady.betas,
+        expression=steady.expression,
+        transl=steady.transl,
+    )
+
+    for frame in range(30):
+        plan_pose_application(steady, LimbFilter(), smoother=smoother, captured_at=frame / 30.0)
+    smoothed = plan_pose_application(spike, LimbFilter(), smoother=smoother, captured_at=1.0)
+    raw = plan_pose_application(spike, LimbFilter())
+
+    def shoulder(plan):
+        return next(r.quaternion for r in plan.rotations if r.bone_name == "left_shoulder")
+
+    def angle(a, b):
+        return 2.0 * math.acos(min(1.0, abs(float(np.dot(a, b)))))
+
+    steady_shoulder = shoulder(plan_pose_application(steady, LimbFilter()))
+    assert angle(shoulder(smoothed), steady_shoulder) < angle(shoulder(raw), steady_shoulder)

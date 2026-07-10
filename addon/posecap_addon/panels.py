@@ -9,6 +9,8 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Protocol
 
+from posecap_core import PoseSmoother
+
 from .apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
@@ -36,6 +38,7 @@ class _LiveStreamSettings(Protocol):
     pear_root: str
     apply_orientation_fix: bool
     world_position_experimental: bool
+    pose_smoothing: bool
     record_live_mocap: bool
 
 
@@ -60,6 +63,7 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     column.prop(settings, "pear_root")
     column.prop(settings, "apply_orientation_fix")
     column.prop(settings, "world_position_experimental")
+    column.prop(settings, "pose_smoothing")
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -168,6 +172,14 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
                 "expect drift"
             ),
             default=False,
+        ),
+        "pose_smoothing": bpy_module.props.BoolProperty(
+            name="Pose Smoothing",
+            description=(
+                "One Euro filter on streamed rotations: suppresses estimator "
+                "jitter at rest without lagging fast motion"
+            ),
+            default=True,
         ),
         "record_live_mocap": bpy_module.props.BoolProperty(
             name="Record Live MoCap",
@@ -279,6 +291,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
+            smoother=PoseSmoother() if bool(settings.pose_smoothing) else None,
             apply_orientation_fix=bool(settings.apply_orientation_fix),
             apply_world_position=bool(settings.world_position_experimental),
             insert_keyframes=bool(settings.record_live_mocap),

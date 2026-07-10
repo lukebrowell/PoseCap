@@ -63,6 +63,14 @@ def test_live_stream_panel_draws_state_controls_from_lifecycle() -> None:
     assert layout.has_label("Stopped")
 
 
+def test_live_stream_panel_exposes_pose_smoothing_toggle() -> None:
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(layout, _Settings(lifecycle_state="STOPPED"))
+
+    assert layout.has_property("pose_smoothing")
+
+
 def test_addon_preferences_draw_runtime_defaults() -> None:
     layout = _FakeLayout()
     preferences = _FakeAddonPreferences(
@@ -676,6 +684,7 @@ class _Settings:
         self.record_live_mocap = False
         self.apply_orientation_fix = True
         self.world_position_experimental = False
+        self.pose_smoothing = True
 
 
 class _FakeLayout:
