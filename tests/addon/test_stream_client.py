@@ -75,6 +75,55 @@ def test_tcp_pose_stream_client_close_during_connect_is_not_reported_as_error() 
         errors.get_nowait()
 
 
+def test_slow_consumer_still_receives_the_newest_frame_not_a_backlog(monkeypatch) -> None:
+    """Task 0009 regression: a reader outpaced by the engine must drain.
+
+    With a per-frame blocking readline, a slow reader turns the OS socket
+    buffers into a FIFO delay line (the heavy-viewport 4s desync). The
+    reader must instead consume every complete line available per wake-up
+    and decode only the newest.
+    """
+    import posecap_addon.stream_client as stream_client_module
+
+    frame_count = 50
+    decode_delay_seconds = 0.025
+    frames = [
+        PoseFrame(SCHEMA_VERSION, seq, 100.0 + seq * 0.01, "no_person", None)
+        for seq in range(1, frame_count + 1)
+    ]
+    real_decode = stream_client_module.decode_pose_frame
+
+    def slow_decode(line: str) -> PoseFrame:
+        time.sleep(decode_delay_seconds)
+        return real_decode(line)
+
+    monkeypatch.setattr(stream_client_module, "decode_pose_frame", slow_decode)
+    server = _FrameServer(frames)
+    server.start()
+    client = TcpPoseStreamClient(
+        server.host,
+        server.port,
+        connect_timeout_seconds=1.0,
+        retry_interval_seconds=0.01,
+    )
+
+    client.start()
+    try:
+        server.wait_done()
+        started = time.monotonic()
+        newest = _next_frame(client, seq=frame_count)
+        elapsed = time.monotonic() - started
+
+        assert newest.seq == frame_count
+        # A FIFO reader needs ~frame_count * decode_delay (>1.2s) to reach
+        # the newest frame; a draining reader needs a handful of decodes.
+        assert elapsed < 0.8, f"reader lagged the stream by {elapsed:.2f}s — not draining"
+        assert client.frames_dropped_by_drain > 0
+    finally:
+        client.close()
+        server.close()
+
+
 def test_tcp_pose_stream_client_reconnects_after_socket_drop() -> None:
     first = PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None)
     second = PoseFrame(SCHEMA_VERSION, 2, 100.5, "no_person", None)

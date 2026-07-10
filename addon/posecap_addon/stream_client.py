@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import socket
 import threading
 import time
@@ -14,6 +15,10 @@ from posecap_contracts import PoseFrame, decode_pose_frame
 
 ErrorCallback = Callable[[BaseException], None]
 ConnectionState = Literal["STOPPED", "CONNECTING", "CONNECTED", "RECONNECTING"]
+
+_RECEIVE_CHUNK_BYTES = 64 * 1024
+
+_logger = logging.getLogger(__name__)
 
 
 class TcpPoseStreamClient:
@@ -43,6 +48,7 @@ class TcpPoseStreamClient:
         self._socket: socket.socket | None = None
         self._error: BaseException | None = None
         self._connection_state: ConnectionState = "STOPPED"
+        self._frames_dropped_by_drain = 0
 
     @property
     def error(self) -> BaseException | None:
@@ -53,6 +59,11 @@ class TcpPoseStreamClient:
     def connection_state(self) -> ConnectionState:
         """Return the current background connection state."""
         return self._connection_state
+
+    @property
+    def frames_dropped_by_drain(self) -> int:
+        """Stale frames skipped because a newer complete frame was available."""
+        return self._frames_dropped_by_drain
 
     def start(self) -> None:
         """Start the background reader thread once."""
@@ -128,16 +139,60 @@ class TcpPoseStreamClient:
         return None
 
     def _read_frames(self, connection: socket.socket) -> None:
+        """Latest-wins at the transport: drain every complete line per wake-up.
+
+        A reader thread starved by Blender's busy main thread (GIL) falls
+        behind the engine's emission rate; reading one line per wake turns
+        the OS socket buffers into a FIFO delay line (task 0009, the
+        heavy-viewport desync). Instead, each wake consumes everything
+        available on the socket and decodes only the newest complete frame.
+        """
         connection.settimeout(None)
-        with connection, connection.makefile("r", encoding="utf-8") as reader:
+        buffer = bytearray()
+        with connection:
             while not self._stop.is_set():
                 try:
-                    line = reader.readline()
+                    chunk = connection.recv(_RECEIVE_CHUNK_BYTES)
                 except OSError:
                     return
-                if line == "":
+                if chunk == b"":
                     return
-                self._put_latest(decode_pose_frame(line))
+                buffer.extend(chunk)
+                reached_eof = self._drain_available(connection, buffer)
+                newest_line = self._take_newest_complete_line(buffer)
+                if newest_line is not None:
+                    self._put_latest(decode_pose_frame(newest_line.decode("utf-8")))
+                if reached_eof:
+                    return
+
+    def _drain_available(self, connection: socket.socket, buffer: bytearray) -> bool:
+        """Pull every byte already queued on the socket; True when EOF hit."""
+        connection.settimeout(0.0)
+        try:
+            while True:
+                try:
+                    chunk = connection.recv(_RECEIVE_CHUNK_BYTES)
+                except (BlockingIOError, InterruptedError):
+                    return False
+                except OSError:
+                    return True
+                if chunk == b"":
+                    return True
+                buffer.extend(chunk)
+        finally:
+            connection.settimeout(None)
+
+    def _take_newest_complete_line(self, buffer: bytearray) -> bytes | None:
+        newline_index = buffer.rfind(b"\n")
+        if newline_index < 0:
+            return None
+        complete = bytes(buffer[:newline_index])
+        del buffer[: newline_index + 1]
+        dropped = complete.count(b"\n")
+        if dropped > 0:
+            self._frames_dropped_by_drain += dropped
+            _logger.debug("drained %d stale pose frames", dropped)
+        return complete.rsplit(b"\n", 1)[-1]
 
     def _put_latest(self, frame: PoseFrame) -> None:
         while True:
