@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -52,34 +53,39 @@ def test_start_engine_stream_timeout_terminates_process() -> None:
     assert processes[0].poll() is not None
 
 
-def test_engine_child_environment_sanitizes_path(monkeypatch) -> None:
+def test_engine_child_environment_sanitizes_path(monkeypatch, tmp_path) -> None:
     """The host app's PATH (Blender's) poisons OpenCV video-demuxer DLL
     resolution in the engine child — frozen-frame capture, 2026-07-10
-    diagnosis. The child keeps every other variable."""
+    diagnosis. The child keeps every other variable. Fixture paths are built
+    with the native separators so the assertion holds on any CI platform."""
     from posecap_addon import engine_process as module
 
-    monkeypatch.setenv("PATH", r"C:\HostApp\weird;C:\Other")
-    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
+    scripts_dir = tmp_path / "venv" / "Scripts"
+    system_root = tmp_path / "winroot"
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tmp_path / "weird"), str(tmp_path / "other")]))
+    monkeypatch.setenv("SYSTEMROOT", str(system_root))
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
 
-    environment = module._sanitized_environment(
-        (r"C:\Dev\PoseCap\.venv-pear\Scripts\posecap-engine.exe", "live")
-    )
+    environment = module._sanitized_environment((str(scripts_dir / "posecap-engine.exe"), "live"))
 
-    assert environment["PATH"].split(";") == [
-        r"C:\Dev\PoseCap\.venv-pear\Scripts",
-        r"C:\Windows\System32",
-        r"C:\Windows",
+    assert environment["PATH"].split(os.pathsep) == [
+        str(scripts_dir),
+        str(system_root / "System32"),
+        str(system_root),
     ]
     assert environment["CUDA_VISIBLE_DEVICES"] == "0"
     assert "weird" not in environment["PATH"]
 
 
-def test_engine_child_environment_handles_bare_command_name(monkeypatch) -> None:
+def test_engine_child_environment_handles_bare_command_name(monkeypatch, tmp_path) -> None:
     from posecap_addon import engine_process as module
 
-    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
+    system_root = tmp_path / "winroot"
+    monkeypatch.setenv("SYSTEMROOT", str(system_root))
 
     environment = module._sanitized_environment(("posecap-engine", "live"))
 
-    assert environment["PATH"].split(";") == [r"C:\Windows\System32", r"C:\Windows"]
+    assert environment["PATH"].split(os.pathsep) == [
+        str(system_root / "System32"),
+        str(system_root),
+    ]
