@@ -499,8 +499,8 @@ class _FakePreviewCollection(dict):
         self.calls.append("clear")
         super().clear()
 
-    def load(self, name: str, path: str, kind: str):
-        self.calls.append(("load", name, path, kind))
+    def load(self, name: str, path: str, kind: str, force_reload: bool = False):
+        self.calls.append(("load", name, path, kind, force_reload))
         self[name] = object()
         return self[name]
 
@@ -514,10 +514,11 @@ def test_refresh_source_preview_clears_then_loads_from_the_file(monkeypatch, tmp
 
     posecap_addon.panels.refresh_source_preview()
 
-    assert pcoll.calls[0] == "clear"
-    load_call = pcoll.calls[1]
+    # force_reload in place (no clear) so the icon never goes empty / flickers.
+    assert "clear" not in pcoll.calls
+    load_call = pcoll.calls[0]
     assert isinstance(load_call, tuple)
-    assert load_call[0] == "load" and load_call[1] == "source"
+    assert load_call[0] == "load" and load_call[1] == "source" and load_call[4] is True
 
 
 def test_refresh_source_preview_is_a_noop_when_the_frame_is_missing(monkeypatch) -> None:

@@ -189,8 +189,9 @@ def refresh_source_preview() -> None:
     path = Path(_PREVIEW_PATH)
     if not path.is_file():
         return
-    _PREVIEW_COLLECTION.clear()
-    _PREVIEW_COLLECTION.load(_PREVIEW_ICON_NAME, str(path), "IMAGE")
+    # force_reload re-reads the same name in place (docs), so the icon never
+    # goes empty between frames — clear()+load() flickers a loading spinner.
+    _PREVIEW_COLLECTION.load(_PREVIEW_ICON_NAME, str(path), "IMAGE", force_reload=True)
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
