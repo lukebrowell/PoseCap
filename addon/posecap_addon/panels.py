@@ -560,7 +560,7 @@ def _format_float(value: Any) -> str:
 
 
 def _limb_filter_from(settings: _LiveStreamSettings) -> LimbFilter | None:
-    """Checkbox semantics: all limbs checked means no filtering at all."""
+    """Checkbox semantics: all checked = no filtering, none checked = apply nothing."""
     arms = bool(settings.apply_arms)
     legs = bool(settings.apply_legs)
     torso = bool(settings.apply_torso)
@@ -572,6 +572,7 @@ def _limb_filter_from(settings: _LiveStreamSettings) -> LimbFilter | None:
         legs_left=legs,
         legs_right=legs,
         torso=torso,
+        apply_nothing=not (arms or legs or torso),
     )
 
 

@@ -43,9 +43,13 @@ class LimbFilter:
     legs_left: bool = False
     legs_right: bool = False
     torso: bool = False
+    # Explicitly whitelist no bones. Distinct from the all-False default,
+    # which means "no filter" (every bone allowed); this means "apply
+    # nothing" — the user deselected every limb group.
+    apply_nothing: bool = False
 
     def is_active(self) -> bool:
-        return any(
+        return self.apply_nothing or any(
             (
                 self.arms_left,
                 self.arms_right,
@@ -63,6 +67,8 @@ class LimbFilter:
         """The bone whitelist, or None when no filter is active (all bones allowed)."""
         if not self.is_active():
             return None
+        if self.apply_nothing:
+            return frozenset()
         allowed: set[str] = set()
         if self.fingers_left:
             allowed.update(_LEFT_FINGERS)

@@ -73,6 +73,16 @@ def test_torso_whitelists_spine_neck_head_and_collars() -> None:
     )
 
 
+def test_apply_nothing_is_active_and_whitelists_no_bones() -> None:
+    empty = LimbFilter(apply_nothing=True)
+    assert empty.is_active()
+    assert empty.allowed_bones() == frozenset()
+
+
+def test_default_filter_is_still_no_filter_not_apply_nothing() -> None:
+    assert LimbFilter().allowed_bones() is None
+
+
 def test_torso_combines_with_arms() -> None:
     allowed = LimbFilter(arms_left=True, arms_right=True, torso=True).allowed_bones()
     assert allowed is not None

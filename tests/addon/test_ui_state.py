@@ -206,6 +206,18 @@ def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypat
     assert {"left_shoulder", "right_wrist", "left_hip", "right_foot"} <= allowed
     assert "spine1" not in allowed
 
+    # All three unchecked must apply NOTHING, not the whole body — otherwise
+    # three empty checkboxes silently drive the entire skeleton.
+    all_off = _Settings(lifecycle_state="STOPPED")
+    all_off.pear_root = "C:/PEAR"
+    all_off.apply_arms = False
+    all_off.apply_legs = False
+    all_off.apply_torso = False
+    run_start(all_off)
+    empty_filter = captured[2]["limb_filter"]
+    assert isinstance(empty_filter, LimbFilter)
+    assert empty_filter.allowed_bones() == frozenset()
+
 
 def test_addon_preferences_draw_runtime_defaults() -> None:
     layout = _FakeLayout()
