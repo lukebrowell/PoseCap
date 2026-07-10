@@ -94,6 +94,34 @@ physics/stabilization filter (DeepMotion), per-joint confidence gating
 (hold last pose when PEAR confidence drops), hand/face apply toggles
 (SMPL-X hand poses already stream; face/jaw unused).
 
+### 2026-07-10 (remainder built, v0.1.3 slice)
+
+Character Setup: the proven converter engine moved from tools/ into
+`addon/posecap_addon/character_setup.py` (the extension must ship it; the
+addon cannot import tools/ at runtime); `sys.exit` calls became
+`ConversionError` with user-facing messages; tools CLI is now a thin shim
+over the same module, its test surface unchanged. Mixamo preset grounded on
+the rebocap SDK mixamorig↔SMPL table (index-aligned; Spine/Spine1/Spine2 →
+spine1/2/3, LeftToeBase → left_foot) with prefix auto-detect by regex
+(mpfb2 finding: prefix varies — `mixamorig:`, numbered, or stripped).
+Mixamo characters download in T-pose, so their preset skips the UE-style
+A-pose re-rest. Operator `posecap.convert_character` is native and undoable
+(REGISTER | UNDO), reports the probe error in the UI, supports custom
+mapping JSON.
+
+Engine params: the CLI already exposed --yolo-threshold/--yolo-model/
+--width/--height (handoff doubt resolved — no engine change needed); the
+Advanced section gained detection confidence, detector dropdown (n/s/m/x,
+labeled by speed/quality) and capture resolution, all passed by Start
+Stream, defaults equal to the previous hardcoded values.
+
+Per-limb filters: core `LimbFilter` gained a `torso` group (spine chain,
+neck, head, collars — pelvis stays excluded when filtering, POC semantics)
+so the three checkboxes (Arms / Legs / Torso, all on by default = no
+filtering) can express every combination; wired into `PoseApplyTimer`.
+
+Open: HITL screenshot pass of collapsed vs expanded panel for Ale.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

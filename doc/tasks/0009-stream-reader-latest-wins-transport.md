@@ -55,6 +55,18 @@ lightweight viewport settings (Material Preview with `taa_samples=1`, studio
 light) keep the reader ahead of the stream; verified visually on 5 checkpoint
 frames. The product fix removes the workaround's necessity.
 
+### 2026-07-10 (fix built, v0.1.3 slice)
+
+`_read_frames` reworked: blocking `recv` for the first chunk, then a
+non-blocking drain of everything already queued on the socket, then decode
+of only the newest complete line (partial tail kept across wake-ups).
+Dropped-frame count exposed as `frames_dropped_by_drain` and logged at
+DEBUG. Regression test slows the decoder artificially (25 ms per decode,
+50 fast frames): the FIFO reader needs >1.2 s to reach the newest frame,
+the draining reader a handful of cycles — asserted under 0.8 s, 5/5 runs
+stable locally. Existing reconnect / idle-gap / EOF / close tests stayed
+green untouched.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

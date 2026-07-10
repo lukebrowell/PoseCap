@@ -230,19 +230,18 @@ Write-Host "If the extension asks for the engine path, point it at the executabl
 if ($LicensedModelsPending) {
     Write-Host ""
     Write-Host "ACTION REQUIRED - licensed body models (one-time, ~5 minutes):" -ForegroundColor Yellow
-    Write-Host "SMPL/SMPL-X/FLAME body models are licensed by MPI and cannot be shipped or"
-    Write-Host "auto-downloaded. Register (free for research; Meshcapade for commercial use),"
-    Write-Host "download, and place these files under $PearDir\assets:"
-    Write-Host "  assets\SMPL\SMPL_NEUTRAL.pkl                (smpl.is.tue.mpg.de)"
-    Write-Host "  assets\SMPLX\SMPLX_NEUTRAL_2020.npz         (smpl-x.is.tue.mpg.de)"
-    Write-Host "  assets\SMPLX\flame_generic_model.pkl        (flame.is.tue.mpg.de)"
-    Write-Host "  assets\SMPLX\smpl_mean_params.npz           (see PEAR README)"
-    Write-Host "  assets\FLAME\FLAME2020\generic_model.pkl    (flame.is.tue.mpg.de)"
+    Write-Host "SMPL/SMPL-X/FLAME body models are licensed by MPI and cannot ship with PoseCap."
+    Write-Host "In Blender, the PoseCap panel (3D Viewport > N key > PoseCap) shows a"
+    Write-Host "'Body Models - one-time setup' section: create free accounts on the three"
+    Write-Host "official sites, enter that email + password, and PoseCap downloads and"
+    Write-Host "installs every file for you. Illustrated step-by-step guide:"
+    Write-Host "  https://github.com/CorridorTech/PoseCap/blob/main/doc/guides/smplx-model-setup.md"
     Write-Host "Then run the Start Menu shortcut 'PoseCap Doctor' - all checks must be green."
 }
 else {
     Write-Host "SMPL-X body models are licensed separately (MPI/Meshcapade) and are NOT installed;"
-    Write-Host "the extension documentation explains where to download them and where to put them."
+    Write-Host "the PoseCap panel's Body Models section walks you through the one-time setup:"
+    Write-Host "  https://github.com/CorridorTech/PoseCap/blob/main/doc/guides/smplx-model-setup.md"
 }
 Stop-Transcript | Out-Null
 exit 0

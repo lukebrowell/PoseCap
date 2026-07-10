@@ -95,6 +95,37 @@ the v0.1.3 slice together with tasks 0008 (remainder) and 0009 — install
 friction is the top PRD metric (15-minute clean-machine install) and this is
 the step that broke it in the field.
 
+### 2026-07-10 (implementation, v0.1.3 slice)
+
+Ground pass (four sources) pinned the download mechanics: the official
+endpoint is `download.is.tue.mpg.de/download.php?domain=<site>&sfile=<file>`
+with the user's credentials POSTed url-encoded — the pattern used by ICON
+fetch_data.sh, PIXIE fetch_model.sh, DECA fetch_data.sh and WHAM. Three MPI
+accounts are required (smpl / smpl-x / flame — MPI accounts are per-site);
+the guide instructs same email + password on all three so the wizard asks
+once. File-to-source map: `SMPL_python_v.1.1.0.zip` (smpl) contains the
+neutral pkl renamed to `SMPL_NEUTRAL.pkl`; `SMPLX_NEUTRAL_2020.npz` (smplx)
+is a direct file; `FLAME2020.zip` (flame) yields `generic_model.pkl` placed
+at both FLAME and SMPLX paths. `smpl_mean_params.npz` is NOT hosted by MPI
+anywhere (origin: SPIN's public research data) — fetched from a pinned
+public HuggingFace revision, sha256-enforced (verified identical to the
+local known-good copy: 6fd6dd68…, 1310 bytes). Deviation from "everything
+from MPI" recorded and justified in the manifest docstring.
+
+Built TDD (36 new tests): shared manifest in `contracts/model_assets.py`
+(doctor now derives its licensed-asset check from it — single source of
+truth); addon `model_setup.py` (credential install pipeline, Downloads
+watcher, doctor verification, all failures user-facing); `model_setup_panel.py`
+(Body Models section, WindowManager-held credentials — never saved to
+.blend, cleared on start, redacted from repr). Illustrated guide at
+doc/guides/smplx-model-setup.md with SVG illustrations (browser screenshot
+capture was unavailable this session; swapping in real site screenshots is
+an open nice-to-have). Installer final text now points at the panel wizard
+and the guide instead of a manual file list.
+
+Open: HITL clean-machine re-test by Dean/Emmet (AC), and the panel
+screenshot for the release notes.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
