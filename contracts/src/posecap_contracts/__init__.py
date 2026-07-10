@@ -14,12 +14,21 @@ from .frames import (
     Vec3,
 )
 from .job import JobState, JobStatus, decode_job_status, encode_job_status
+from .model_assets import (
+    MPI_DOWNLOAD_URL,
+    REQUIRED_MODEL_ASSETS,
+    ModelAsset,
+    MpiDownload,
+    PublicDownload,
+)
 
 __all__ = [
+    "MPI_DOWNLOAD_URL",
     "NUM_BETAS",
     "NUM_BODY_JOINTS",
     "NUM_EXPRESSION",
     "NUM_HAND_JOINTS",
+    "REQUIRED_MODEL_ASSETS",
     "SCHEMA_VERSION",
     "ContractError",
     "FrameDecodeError",
@@ -27,11 +36,14 @@ __all__ = [
     "JobState",
     "JobStatus",
     "JobStatusDecodeError",
+    "ModelAsset",
+    "MpiDownload",
     "PoseFrame",
     "PosePayload",
+    "PublicDownload",
     "Vec3",
-    "decode_job_status",
     "decode_pose_frame",
+    "decode_job_status",
     "encode_job_status",
     "encode_pose_frame",
 ]

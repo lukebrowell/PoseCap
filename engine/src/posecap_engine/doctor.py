@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
+from posecap_contracts import REQUIRED_MODEL_ASSETS
+
 from .config import PEAR_MODELS_REVISION, PEAR_REVISION
 from .errors import EngineError
 from .pear_adapter import _prepend_sys_path, _validate_external_checkout
@@ -47,13 +49,8 @@ _PEAR_IMPORTS = (
 
 _RUNTIME_VERSION_MODULES = ("torch", "torchvision", "pytorch3d")
 
-_LICENSED_ASSET_PATHS = (
-    Path("assets") / "SMPL" / "SMPL_NEUTRAL.pkl",
-    Path("assets") / "SMPLX" / "SMPLX_NEUTRAL_2020.npz",
-    Path("assets") / "SMPLX" / "flame_generic_model.pkl",
-    Path("assets") / "SMPLX" / "smpl_mean_params.npz",
-    Path("assets") / "FLAME" / "FLAME2020" / "generic_model.pkl",
-)
+# Single source of truth for the required licensed files: the shared manifest.
+_LICENSED_ASSET_PATHS = tuple(Path(*asset.target_path) for asset in REQUIRED_MODEL_ASSETS)
 
 
 @dataclass(frozen=True)
