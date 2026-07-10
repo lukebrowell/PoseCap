@@ -87,6 +87,7 @@ Later:
 * Repository is private during early development but must stay publishable at all times: git history is permanent, so licensed binaries and secrets are blocked by gitignore and CI scan from the first commit, never cleaned up after the fact.
 * Runtime requires an NVIDIA CUDA GPU; CPU-only operation is out of scope (PEAR inference is CUDA-bound).
 * Blender 4.2 LTS minimum, per AGENTS.md.
+* The user is an animator/editor/designer, not a tech expert (Ale, 2026-07-10): no user-facing capability may require a command line, a script invocation, or a separate library install. Everything the user touches is GUI — Blender panel operators or the installer. CLI scripts under tools/ are internal dev/CI plumbing only and are never part of user documentation.
 
 ## Open Questions
 

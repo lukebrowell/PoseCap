@@ -38,9 +38,11 @@ probe tolerance).
       resolution — passed through the engine CLI by Start Stream.
 - [ ] Every advanced property has a sane default equal to today's hardcoded
       value; a fresh scene behaves identically to pre-task builds.
-- [ ] Rig converter reachable from the UI (operator wrapping
-      tools/convert_target_armature.py flow) OR explicitly deferred with a
-      Notes entry saying why.
+- [ ] Rig converter is a one-click panel operator ("Convert Rig for PoseCap":
+      pick armature → convert → report probe result in the UI). The CLI in
+      tools/convert_target_armature.py is internal plumbing only — the user
+      NEVER touches a terminal (PRD: target user is an animator on a machine
+      without dev tooling; binding directive Ale 2026-07-10).
 - [ ] Candidate list for future options recorded in Notes with the grounding
       source for each (foot lock, physics filter, per-limb confidence gating).
 
@@ -63,6 +65,14 @@ Append-only log. Date each entry. Never rewrite past entries.
 ### 2026-07-10
 
 Task created from the parametrization principle + tool-comparison ground.
+
+Binding product directive (Ale, same day): PoseCap users are video editors,
+animators and designers — not tech experts. Nothing user-facing may depend on
+a command line or a separate library install; every capability ships as GUI
+(panel operator or installer step). The rig converter AC above was hardened
+accordingly: the tools/ CLI is dev/CI plumbing, the user path is a one-click
+operator. This directive also re-scopes how future options land: always
+panel-first.
 Future-option candidates (not in scope here): foot lock / foot planting
 (DeepMotion, Move AI, Autodesk Flow all ship it — needs contact detection),
 physics/stabilization filter (DeepMotion), per-joint confidence gating
