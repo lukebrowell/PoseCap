@@ -43,6 +43,13 @@ probe tolerance).
       tools/convert_target_armature.py is internal plumbing only — the user
       NEVER touches a terminal (PRD: target user is an animator on a machine
       without dev tooling; binding directive Ale 2026-07-10).
+- [ ] Converter auto-detects the skeleton family from bone names (UE and
+      Mixamo presets ship; Mixamo unlocks Adobe's free character library) and
+      supports a custom mapping; conversion runs in the OPEN file as a native
+      undoable operator — no subprocess, no terminal, Ctrl+Z reverts.
+- [ ] Per-limb apply filters (core LimbFilter, already tested) exposed as
+      simple checkboxes (arms / legs / torso) — apply capture to part of the
+      body only.
 - [ ] Candidate list for future options recorded in Notes with the grounding
       source for each (foot lock, physics filter, per-limb confidence gating).
 
@@ -65,6 +72,14 @@ Append-only log. Date each entry. Never rewrite past entries.
 ### 2026-07-10
 
 Task created from the parametrization principle + tool-comparison ground.
+
+Release slice decided (Ale, 2026-07-10 evening, after sending v0.1.2 to Dean):
+the next significant release (v0.1.3) bundles the REMAINDER of this task —
+Character Setup panel section (one-click converter, UE + Mixamo auto-detect,
+undoable), engine parameters under Advanced (detection confidence,
+quality/speed detector dropdown, capture resolution), per-limb filters —
+PLUS task 0009 (stream reader drain, removes the heavy-viewport known issue
+before Dean hits it). Smoothing toggle + sliders already shipped in v0.1.2.
 
 Binding product directive (Ale, same day): PoseCap users are video editors,
 animators and designers — not tech experts. Nothing user-facing may depend on
