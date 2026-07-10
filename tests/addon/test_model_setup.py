@@ -226,6 +226,35 @@ def test_smpl_zip_neutral_member_matches_variant_names(tmp_path: Path) -> None:
     assert pear_root.joinpath("assets", "SMPL", "SMPL_NEUTRAL.pkl").is_file()
 
 
+def test_smpl_zip_member_requires_pkl_suffix_not_substring(tmp_path: Path) -> None:
+    """A 'neutral' file whose name only contains '.pkl' mid-string must not match."""
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    (downloads / "SMPL_python_v.1.1.0.zip").write_bytes(
+        _zip_payload(
+            "SMPL_python_v.1.1.0/models/basicmodel_neutral.pkl.bak", _pkl_bytes(20_000_001)
+        )
+    )
+
+    with pytest.raises(ModelSetupError, match="SMPL_NEUTRAL.pkl"):
+        install_from_downloaded_archive(pear_root, downloads / "SMPL_python_v.1.1.0.zip")
+
+
+def test_ambiguous_neutral_members_fail_rather_than_guess(tmp_path: Path) -> None:
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    buffer = __import__("io").BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("models/basicmodel_neutral_a.pkl", _pkl_bytes(20_000_001))
+        archive.writestr("models/basicmodel_neutral_b.pkl", _pkl_bytes(20_000_001))
+    (downloads / "SMPL_python_v.1.1.0.zip").write_bytes(buffer.getvalue())
+
+    with pytest.raises(ModelSetupError, match="more than one|multiple|ambiguous"):
+        install_from_downloaded_archive(pear_root, downloads / "SMPL_python_v.1.1.0.zip")
+
+
 def test_smpl_zip_without_a_neutral_member_fails_friendly(tmp_path: Path) -> None:
     downloads = tmp_path / "Downloads"
     pear_root = tmp_path / "pear"

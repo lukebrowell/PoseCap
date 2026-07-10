@@ -170,6 +170,22 @@ Guide screenshots: real MPI-site captures need Ale's logged-in browser (the
 in-app browser timed out on these pages and Claude-in-Chrome is not
 connected); the guide ships with SVG illustrations meanwhile.
 
+(Correction to the numbered list above: it has three items, 1-3; "items 1-4"
+was a miscount — read it as "items 1-3 plus the guide work".)
+
+Fresh-context /ad-review of the win.2 delta (two axes) found no Blockers;
+two convergent Concerns on the tolerant member match were fixed before ship:
+(a) a "." token is now an extension SUFFIX check, so ".pkl" never matches
+"model.pkl.bak"; (b) an archive with more than one member matching the
+tokens now raises a friendly ModelSetupError instead of silently taking the
+first. The first-run panel hint was reworded so it is not false on a later
+slow start (GPU init / cold cache) after the one-time weight download:
+"Still starting — this can take a few minutes; the very first run also
+downloads the AI model (~2.7 GB)." Logged Notes (not fixed): the ~2.7 GB
+figure is duplicated across doctor / panel / guide with no shared constant
+(the guide is markdown and cannot import one); the STARTING-hint clock is
+injected via a private `_now` module seam rather than the constructor.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

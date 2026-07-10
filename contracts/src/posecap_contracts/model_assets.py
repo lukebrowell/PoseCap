@@ -106,9 +106,21 @@ _FLAME_SIGNUP_URL = "https://flame.is.tue.mpg.de/register.php"
 
 
 def archive_member_matches(member_name: str, tokens: tuple[str, ...]) -> bool:
-    """True when the archive member's basename contains every token (case-insensitive)."""
+    """True when the archive member's basename satisfies every token (case-insensitive).
+
+    A token that starts with "." is an extension suffix the basename must end
+    with (so ".pkl" never matches "model.pkl.bak"); any other token must appear
+    as a substring.
+    """
     basename = member_name.replace("\\", "/").rsplit("/", 1)[-1].lower()
-    return all(token.lower() in basename for token in tokens)
+    for token in tokens:
+        lowered = token.lower()
+        if lowered.startswith("."):
+            if not basename.endswith(lowered):
+                return False
+        elif lowered not in basename:
+            return False
+    return True
 
 
 _FLAME_2020_DOWNLOAD = MpiDownload(

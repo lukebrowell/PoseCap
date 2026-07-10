@@ -47,7 +47,8 @@ _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 # non-technical user assumes it hung (Corridor field report, 2026-07-10).
 _LONG_START_SECONDS = 10.0
 _LONG_START_MESSAGE = (
-    "Still starting — first run downloads the AI model (~2.7 GB), this can take several minutes"
+    "Still starting — this can take a few minutes; the very first run also "
+    "downloads the AI model (~2.7 GB)"
 )
 
 

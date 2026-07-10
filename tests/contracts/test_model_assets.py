@@ -29,6 +29,17 @@ def test_mpi_gated_assets_download_with_user_credentials_from_official_domains()
     assert all(source.signup_url.startswith("https://") for source in mpi_sources)
 
 
+def test_archive_member_matches_treats_dot_token_as_a_suffix() -> None:
+    from posecap_contracts.model_assets import archive_member_matches
+
+    tokens = ("neutral", ".pkl")
+    assert archive_member_matches("dir/basicModel_NEUTRAL_lbs.pkl", tokens)
+    assert not archive_member_matches("dir/basicmodel_neutral.pkl.bak", tokens)
+    assert not archive_member_matches("dir/basicmodel_male.pkl", tokens)
+    # backslash-separated members (zip written on Windows) resolve by basename
+    assert archive_member_matches("SMPL\\models\\neutral_model.pkl", tokens)
+
+
 def test_mean_params_is_the_only_public_download_and_is_hash_pinned() -> None:
     public = [asset for asset in REQUIRED_MODEL_ASSETS if isinstance(asset.source, PublicDownload)]
     assert [asset.target_path[-1] for asset in public] == ["smpl_mean_params.npz"]

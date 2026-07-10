@@ -81,10 +81,11 @@ first, then:
 ## First Start Stream downloads the AI model (~2.7 GB, one time)
 
 The very first time you click **Start Stream**, PoseCap downloads the pinned
-pose-estimation model (~2.7 GB) before the first frame appears. The panel
-shows **"Still starting — first run downloads the AI model (~2.7 GB), this
-can take several minutes."** This is the download, not a freeze — leave it
-running. Every later start is immediate.
+pose-estimation model (~2.7 GB) before the first frame appears. If a start
+takes a while the panel shows **"Still starting — this can take a few
+minutes; the very first run also downloads the AI model (~2.7 GB)."** This
+is the download, not a freeze — leave it running. Every later start is
+immediate.
 
 ## What you end up with
 

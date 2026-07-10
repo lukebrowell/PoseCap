@@ -262,19 +262,23 @@ def _extract_member(
     file_name = asset.target_path[-1]
     try:
         with zipfile.ZipFile(payload_path) as archive:
-            member = next(
-                (
-                    name
-                    for name in archive.namelist()
-                    if not name.endswith("/") and archive_member_matches(name, member_tokens)
-                ),
-                None,
-            )
-            if member is None:
+            members = [
+                name
+                for name in archive.namelist()
+                if not name.endswith("/") and archive_member_matches(name, member_tokens)
+            ]
+            if not members:
                 raise ModelSetupError(
                     f"The downloaded archive does not contain {file_name}. "
                     "Please retry, or download it manually from the official site."
                 )
+            if len(members) > 1:
+                raise ModelSetupError(
+                    f"The downloaded archive has more than one file that could be "
+                    f"{file_name}; cannot tell which is correct. Please download it "
+                    "manually from the official site."
+                )
+            member = members[0]
             extracted = extraction_dir / file_name
             with archive.open(member) as source, extracted.open("wb") as sink:
                 shutil.copyfileobj(source, sink)
