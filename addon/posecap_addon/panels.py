@@ -78,6 +78,7 @@ class _LiveStreamSettings(Protocol):
     apply_torso: bool
     character_preset: str
     character_mapping_json: str
+    video_source: str
 
 
 class _AddonPreferences(Protocol):
@@ -122,6 +123,8 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
         limbs.prop(settings, "apply_arms", toggle=True)
         limbs.prop(settings, "apply_legs", toggle=True)
         limbs.prop(settings, "apply_torso", toggle=True)
+        advanced.label(text="Test Source", icon="FILE_MOVIE")
+        advanced.prop(settings, "video_source")
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -336,6 +339,15 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         "character_mapping_json": bpy_module.props.StringProperty(
             name="Mapping File",
             description="JSON file mapping SMPL-X joint names to bone names",
+            default="",
+            subtype="FILE_PATH",
+        ),
+        "video_source": bpy_module.props.StringProperty(
+            name="Video File",
+            description=(
+                "Drive capture from a recorded video instead of the webcam — "
+                "a virtual camera for repeatable testing. Leave empty to use the camera"
+            ),
             default="",
             subtype="FILE_PATH",
         ),
@@ -563,7 +575,7 @@ def _engine_command(
             "PEAR Root is required — set PEAR Root in the PoseCap panel or the addon preferences."
         )
     engine_executable = _resolve_engine_executable(preferences, env, exists)
-    return (
+    command = [
         engine_executable,
         "live",
         "--pear-root",
@@ -580,7 +592,14 @@ def _engine_command(
         str(int(settings.capture_width)),
         "--height",
         str(int(settings.capture_height)),
-    )
+    ]
+    # A recorded clip stands in for the webcam — a "virtual camera" for
+    # repeatable end-to-end testing. The engine treats --source as taking
+    # precedence over --camera-index.
+    video_source = str(getattr(settings, "video_source", "")).strip()
+    if video_source != "":
+        command += ["--source", video_source]
+    return tuple(command)
 
 
 def _resolve_pear_root(

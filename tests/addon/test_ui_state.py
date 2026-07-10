@@ -433,6 +433,39 @@ def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
     assert command[0] == str(installer_exe)
 
 
+def test_engine_command_passes_video_source_when_set() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.video_source = "C:/clips/dance.mp4"
+
+    command = posecap_addon.panels._engine_command(
+        settings, None, environ={}, path_exists=lambda _path: True
+    )
+
+    assert command[command.index("--source") + 1] == "C:/clips/dance.mp4"
+    # camera-index still present; the engine treats --source as taking precedence.
+    assert "--camera-index" in command
+
+
+def test_engine_command_omits_source_flag_when_video_source_empty() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+
+    command = posecap_addon.panels._engine_command(
+        settings, None, environ={}, path_exists=lambda _path: True
+    )
+
+    assert "--source" not in command
+
+
+def test_advanced_section_exposes_the_video_source_field() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.show_advanced = True
+    layout = _FakeLayout()
+    draw_live_stream_panel(layout, settings)
+    assert layout.has_property("video_source")
+
+
 def test_engine_command_errors_with_where_to_fix_when_nothing_resolves() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     with pytest.raises(ValueError, match="panel or the addon preferences"):
@@ -990,6 +1023,7 @@ class _Settings:
         self.apply_torso = True
         self.character_preset = "AUTO"
         self.character_mapping_json = ""
+        self.video_source = ""
 
 
 class _FakeLayout:

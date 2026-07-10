@@ -219,6 +219,30 @@ uninstall cleanup, leak into unrelated processes) for redundancy the
 fallback already covers. Env-var READ support is kept for free in case a dev
 sets it.
 
+### 2026-07-10 (virtual-camera e2e — Ale's ask: "show it working with video")
+
+The engine already accepts `--source <video-file>` (VideoFileSource) — a
+built-in "virtual camera." Exposed it in the panel under Advanced (Video
+File field); when set, Start Stream passes `--source`, so a recorded clip
+stands in for the webcam for repeatable end-to-end testing (TDD in
+`tests/addon/test_ui_state.py`).
+
+Proved the full pipeline end to end on this GPU machine with the repo's
+license-clean Pexels fixtures (`tests/fixtures/video/`): video → PEAR
+(`live --source clip.mp4`, 250/250 and 300/300 frames with a person
+detected) → the REAL addon apply path (`plan_pose_application`, orientation
+fix on) → a SMPL-X-convention armature built to `doc/workflows.md`
+(bones +Y, roll 0, object X+90) → rendered side-by-side with the source in
+Blender. The rendered body tracks the subject correctly (dance + stretch
+clips), which also validates the target-armature convention geometrically.
+Harness lives in this session's scratchpad (`capture_poses.py`,
+`render_demo.py`); promote to `tools/` as a GPU-tagged eval if we want it
+committed.
+
+Scope note: this validates PEAR capture + PoseCap apply + the armature
+convention. It does NOT validate the UE/Mixamo CONVERTER on a real
+character — that HITL is still open (task 0008 / earlier Notes).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
