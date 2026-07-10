@@ -1,6 +1,6 @@
 # Task 0009: Stream reader must drain — latest-wins at the transport layer
 
-**Status:** proposed
+**Status:** done
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent
@@ -26,23 +26,23 @@ wall-times; sit-window alignment check) — same scene, only shading differed.
 
 ## Acceptance Criteria
 
-- [ ] When the reader thread is artificially slowed (test-controlled), the
+- [x] When the reader thread is artificially slowed (test-controlled), the
       frame returned by `latest()` is never older than the newest COMPLETE
       frame available on the socket at read time (bounded by one read cycle).
-- [ ] Under a normal-speed reader, behavior is unchanged (existing stream
+- [x] Under a normal-speed reader, behavior is unchanged (existing stream
       client tests stay green).
-- [ ] Reconnect / EOF / decode-error semantics unchanged.
-- [ ] Apply-time instrumentation (or a new counter) exposes dropped-by-drain
+- [x] Reconnect / EOF / decode-error semantics unchanged.
+- [x] Apply-time instrumentation (or a new counter) exposes dropped-by-drain
       frame counts at DEBUG so lag like this is observable in the log.
 
 ## Plan
 
-- [ ] TDD: regression test with a slow consumer and a fast producer asserting
+- [x] TDD: regression test with a slow consumer and a fast producer asserting
       the applied frame's seq is near the newest written seq.
-- [ ] Rework `_read_frames` to drain all complete lines available on the
+- [x] Rework `_read_frames` to drain all complete lines available on the
       socket per wake-up (non-blocking recv into a buffer, split lines, keep
       newest) instead of one blocking `readline()` per frame.
-- [ ] Full gates + fresh-context review per WORKFLOW §10.
+- [x] Full gates + fresh-context review per WORKFLOW §10.
 
 ## Notes
 
@@ -80,7 +80,7 @@ transient corruption on a superseded frame is correctly irrelevant.
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task

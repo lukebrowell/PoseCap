@@ -1,6 +1,6 @@
 # Task 0010: SMPL-X body models — guided, near-automated setup
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent + HITL (clean-machine validation)
@@ -49,39 +49,39 @@ result) in the repo and linked from the installer and the release notes.
 
 ## Acceptance Criteria
 
-- [ ] Panel (and installer final page) shows a "Set Up Body Models" action
+- [x] Panel (and installer final page) shows a "Set Up Body Models" action
       whenever the expected model files are absent; it opens the official
       sign-up page and explains that registering there is the license step.
-- [ ] Credential path: with the user's MPI account email/password, the wizard
+- [x] Credential path: with the user's MPI account email/password, the wizard
       downloads the pinned archives from the official endpoint and installs
       them end to end; credentials live in memory only — never written to
       disk, settings, or logs; a wrong password yields a friendly retry
       message.
-- [ ] Fallback path: folder watcher detects a manually downloaded archive in
+- [x] Fallback path: folder watcher detects a manually downloaded archive in
       Downloads, validates names/sizes, extracts and installs to the engine's
       expected paths without any manual file operation.
-- [ ] Corrupted/wrong download produces a friendly message naming what was
+- [x] Corrupted/wrong download produces a friendly message naming what was
       expected, not a traceback.
-- [ ] Doctor check (models present + loadable) runs after install and its
+- [x] Doctor check (models present + loadable) runs after install and its
       result is visible in the UI.
-- [ ] No model file is ever bundled, redistributed or fetched without the
+- [x] No model file is ever bundled, redistributed or fetched without the
       user's own action on the official site (license gate preserved).
-- [ ] Illustrated guide (with images) lands in doc/ and is linked from the
+- [x] Illustrated guide (with images) lands in doc/ and is linked from the
       installer text and release notes; Dean can forward it as-is.
 - [ ] HITL: one clean-machine run by someone who is not us (Dean/Emmet
       re-test) completes the model step without questions.
 
 ## Plan
 
-- [ ] Ground: what exactly does the engine/PEAR need from SMPL-X (file list,
+- [x] Ground: what exactly does the engine/PEAR need from SMPL-X (file list,
       versions, paths) — pin the canonical list with hashes.
-- [ ] Ground: how Meshcapade's own Blender addon and comparable tools walk
+- [x] Ground: how Meshcapade's own Blender addon and comparable tools walk
       users through this step (best-in-class reference).
-- [ ] Wizard slice (TDD): missing-model detection + file list UI.
-- [ ] Watcher slice (TDD): archive detection, validation, extraction,
+- [x] Wizard slice (TDD): missing-model detection + file list UI.
+- [x] Watcher slice (TDD): archive detection, validation, extraction,
       placement, friendly failures.
-- [ ] Doctor slice: post-install verification surfaced in the panel.
-- [ ] Illustrated guide + installer/release-notes links.
+- [x] Doctor slice: post-install verification surfaced in the panel.
+- [x] Illustrated guide + installer/release-notes links.
 
 ## Notes
 
@@ -190,7 +190,7 @@ injected via a private `_now` module seam rather than the constructor.
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task

@@ -1,6 +1,6 @@
 # Task 0008: Advanced options — CK2P-style progressive disclosure
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent + HITL (UI review)
@@ -27,41 +27,41 @@ probe tolerance).
 
 ## Acceptance Criteria
 
-- [ ] Panel gains a collapsed "Advanced" sub-section (default closed); the
+- [x] Panel gains a collapsed "Advanced" sub-section (default closed); the
       basic flow is visually unchanged when collapsed.
-- [ ] Smoothing exposes Min Cutoff (Hz) and Beta sliders under Advanced,
+- [x] Smoothing exposes Min Cutoff (Hz) and Beta sliders under Advanced,
       defaults 1.0 / 0.5, live-applied on next Start Stream; tooltips state
       the Casiez semantics (lower cutoff = calmer at rest; higher beta =
       less lag on fast moves).
-- [ ] Engine settings exposed under Advanced: detection confidence
+- [x] Engine settings exposed under Advanced: detection confidence
       (yolo_threshold), detector model (yolov8s/yolov8x enum), capture
       resolution — passed through the engine CLI by Start Stream.
-- [ ] Every advanced property has a sane default equal to today's hardcoded
+- [x] Every advanced property has a sane default equal to today's hardcoded
       value; a fresh scene behaves identically to pre-task builds.
-- [ ] Rig converter is a one-click panel operator ("Convert Rig for PoseCap":
+- [x] Rig converter is a one-click panel operator ("Convert Rig for PoseCap":
       pick armature → convert → report probe result in the UI). The CLI in
       tools/convert_target_armature.py is internal plumbing only — the user
       NEVER touches a terminal (PRD: target user is an animator on a machine
       without dev tooling; binding directive Ale 2026-07-10).
-- [ ] Converter auto-detects the skeleton family from bone names (UE and
+- [x] Converter auto-detects the skeleton family from bone names (UE and
       Mixamo presets ship; Mixamo unlocks Adobe's free character library) and
       supports a custom mapping; conversion runs in the OPEN file as a native
       undoable operator — no subprocess, no terminal, Ctrl+Z reverts.
-- [ ] Per-limb apply filters (core LimbFilter, already tested) exposed as
+- [x] Per-limb apply filters (core LimbFilter, already tested) exposed as
       simple checkboxes (arms / legs / torso) — apply capture to part of the
       body only.
-- [ ] Candidate list for future options recorded in Notes with the grounding
+- [x] Candidate list for future options recorded in Notes with the grounding
       source for each (foot lock, physics filter, per-limb confidence gating).
 
 ## Plan
 
-- [ ] Panel Advanced sub-section scaffold (collapsed `layout.panel` /
+- [x] Panel Advanced sub-section scaffold (collapsed `layout.panel` /
       `use_property_split` per Blender 4.2+ UI conventions).
-- [ ] Scene properties + wiring for smoothing sliders → `PoseSmoother` kwargs.
-- [ ] Scene properties + engine-command flags for yolo_threshold / model /
+- [x] Scene properties + wiring for smoothing sliders → `PoseSmoother` kwargs.
+- [x] Scene properties + engine-command flags for yolo_threshold / model /
       resolution (engine CLI already accepts config; verify flags exist,
       add if missing).
-- [ ] TDD per behavior (panel draw, prop registration, Start Stream command
+- [x] TDD per behavior (panel draw, prop registration, Start Stream command
       assembly) following tests/addon/test_ui_state.py patterns.
 - [ ] HITL pass: screenshot of collapsed vs expanded panel for Ale.
 
@@ -134,7 +134,7 @@ Open: HITL screenshot pass of collapsed vs expanded panel for Ale.
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task
