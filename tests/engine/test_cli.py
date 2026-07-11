@@ -76,6 +76,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
             yolo_threshold: float,
             crop_ratio: float,
             yolo_model: str,
+            source_loop: bool = False,
             preview_writer: object = None,
         ) -> None:
             captured["source"] = {
@@ -154,6 +155,66 @@ def test_live_command_source_accepts_video_file_path(monkeypatch) -> None:
 
     assert code == 0
     assert captured["source"] == VideoFileSource("assets/dance.mp4")
+
+
+def test_live_command_source_loop_flag_enables_video_looping(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakePearFrameSource:
+        def __init__(
+            self,
+            pear_root: Path,
+            *,
+            source: int | str,
+            source_loop: bool = False,
+            **_kwargs: object,
+        ) -> None:
+            captured["source_loop"] = source_loop
+
+        def frames(self):
+            return iter(())
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    monkeypatch.setattr("posecap_engine.cli.serve_once", lambda frames, **kwargs: None)
+
+    code = run(
+        ["live", "--pear-root", "C:/PEAR", "--source", "assets/dance.mp4", "--source-loop"],
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert captured["source_loop"] is True
+
+
+def test_live_command_defaults_source_loop_off(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakePearFrameSource:
+        def __init__(
+            self,
+            pear_root: Path,
+            *,
+            source: int | str,
+            source_loop: bool = False,
+            **_kwargs: object,
+        ) -> None:
+            captured["source_loop"] = source_loop
+
+        def frames(self):
+            return iter(())
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    monkeypatch.setattr("posecap_engine.cli.serve_once", lambda frames, **kwargs: None)
+
+    code = run(
+        ["live", "--pear-root", "C:/PEAR", "--source", "assets/dance.mp4"],
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert captured["source_loop"] is False
 
 
 def test_live_command_source_digits_parse_as_camera_index(monkeypatch) -> None:

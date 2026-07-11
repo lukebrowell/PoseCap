@@ -620,7 +620,9 @@ def _engine_command(
     if str(getattr(settings, "source_kind", "CAMERA")) == "VIDEO":
         video_source = str(getattr(settings, "video_source", "")).strip()
         if video_source != "":
-            command += ["--source", video_source]
+            # Loop the clip by default: a test source should keep driving the
+            # armature instead of ending the stream after one pass.
+            command += ["--source", video_source, "--source-loop"]
     if bool(getattr(settings, "preview_enabled", False)):
         command += ["--preview-window"]
     return tuple(command)

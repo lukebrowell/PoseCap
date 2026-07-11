@@ -59,6 +59,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--source",
         help="camera index or video file path; takes precedence over --camera-index",
     )
+    live.add_argument(
+        "--source-loop",
+        action="store_true",
+        help="replay a finite video source from the start on EOF instead of ending the stream",
+    )
     live.add_argument("--width", type=int, default=1280)
     live.add_argument("--height", type=int, default=720)
     live.add_argument("--yolo-threshold", type=float, default=0.3)
@@ -141,6 +146,7 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
         yolo_threshold=args.yolo_threshold,
         crop_ratio=args.crop_ratio,
         yolo_model=args.yolo_model,
+        source_loop=bool(args.source_loop),
         preview_writer=_build_preview_writer(args),
     )
 

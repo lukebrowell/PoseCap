@@ -448,6 +448,32 @@ def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     assert "--camera-index" in command
 
 
+def test_engine_command_loops_the_video_source_in_video_mode() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.source_kind = "VIDEO"
+    settings.video_source = "C:/clips/dance.mp4"
+
+    command = posecap_addon.panels._engine_command(
+        settings, None, environ={}, path_exists=lambda _path: True
+    )
+
+    # A test clip should loop rather than end the stream after one pass.
+    assert "--source-loop" in command
+
+
+def test_engine_command_camera_mode_does_not_loop() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.source_kind = "CAMERA"
+
+    command = posecap_addon.panels._engine_command(
+        settings, None, environ={}, path_exists=lambda _path: True
+    )
+
+    assert "--source-loop" not in command
+
+
 def test_engine_command_camera_mode_ignores_a_stale_video_path() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"

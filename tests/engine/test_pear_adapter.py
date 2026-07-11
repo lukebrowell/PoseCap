@@ -143,6 +143,27 @@ def test_pear_frame_source_read_failure_error_names_video_file_source(tmp_path: 
     assert capture.released
 
 
+def test_pear_frame_source_passes_source_loop_into_capture_config(tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    seen: dict[str, object] = {}
+
+    def capture_factory(config: PearLiveConfig) -> _FakeFiniteCapture:
+        seen["source_loop"] = config.source_loop
+        return _FakeFiniteCapture(frame_count=0)
+
+    source = PearFrameSource(
+        pear_root,
+        source=VideoFileSource("assets/dance.mp4"),
+        source_loop=True,
+        runtime_factory=lambda _config: _FakeRuntime([]),
+        capture_factory=capture_factory,
+    )
+
+    list(source.frames())
+
+    assert seen["source_loop"] is True
+
+
 def test_pear_frame_source_ends_stream_cleanly_at_video_eof(tmp_path: Path) -> None:
     pear_root = _pear_checkout(tmp_path)
     capture = _FakeFiniteCapture(frame_count=2)
@@ -175,6 +196,80 @@ def test_video_file_capture_opens_path_reads_rgb_and_flags_eof() -> None:
     assert capture.read_rgb() is not None
     assert capture.read_rgb() is None
     assert capture.exhausted
+
+
+def test_video_file_capture_loops_to_the_start_on_eof_when_looping() -> None:
+    frame_a = np.zeros((2, 2, 3), dtype=np.uint8)
+    frame_b = np.ones((2, 2, 3), dtype=np.uint8)
+    cv2 = _FakeCv2(frames=[frame_a, frame_b])
+    config = PearLiveConfig(
+        pear_root=Path("pear"),
+        source=VideoFileSource("assets/dance.mp4"),
+        source_loop=True,
+    )
+
+    capture = pear_adapter._VideoFileCapture(config, cv2)
+
+    assert capture.read_rgb() is not None  # frame a
+    assert capture.read_rgb() is not None  # frame b
+    # EOF: re-seek to frame 0 and keep playing instead of ending the stream.
+    assert capture.read_rgb() is not None  # frame a again
+    assert not capture.exhausted
+    assert (cv2.CAP_PROP_POS_FRAMES, 0) in cv2.prop_sets
+
+
+def test_video_file_capture_looping_marks_eof_when_source_has_no_frames() -> None:
+    # A 0-frame or unreadable clip must not spin forever when looping.
+    cv2 = _FakeCv2(frames=[])
+    config = PearLiveConfig(
+        pear_root=Path("pear"),
+        source=VideoFileSource("empty.mp4"),
+        source_loop=True,
+    )
+
+    capture = pear_adapter._VideoFileCapture(config, cv2)
+
+    assert capture.read_rgb() is None
+    assert capture.exhausted
+
+
+@pytest.mark.integration
+def test_video_file_capture_loops_a_real_mp4_via_opencv_reseek() -> None:
+    # Real-backend guard: the fake cv2 cannot prove that OpenCV actually rewinds
+    # an mp4 on CAP_PROP_POS_FRAMES=0. Some codec/container backends silently
+    # no-op a backward seek; if that regressed, --source-loop would quietly end
+    # the stream after one pass with no diagnostic. Drive the real capture
+    # against a committed fixture to keep the loop path honest.
+    cv2 = pytest.importorskip("cv2")
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "tests"
+        / "fixtures"
+        / "video"
+        / "handstand_inversion_1280x720_25fps.mp4"
+    )
+
+    def read_run(*, loop: bool, limit: int) -> tuple[int, bool]:
+        config = PearLiveConfig(
+            pear_root=Path("pear"), source=VideoFileSource(str(fixture)), source_loop=loop
+        )
+        capture = pear_adapter._VideoFileCapture(config, cv2)
+        try:
+            count = 0
+            while count < limit and capture.read_rgb() is not None:
+                count += 1
+            return count, capture.exhausted
+        finally:
+            capture.release()
+
+    clip_frames, exhausted_no_loop = read_run(loop=False, limit=100_000)
+    looped_frames, exhausted_looping = read_run(loop=True, limit=clip_frames + 20)
+
+    assert clip_frames > 0
+    assert exhausted_no_loop is True  # non-looping capture ends at real EOF
+    # Looping keeps producing frames past the clip length — the real re-seek worked.
+    assert looped_frames == clip_frames + 20
+    assert exhausted_looping is False
 
 
 def test_video_file_capture_reports_unopenable_file() -> None:
@@ -493,10 +588,14 @@ class _FakeFiniteCapture:
 class _FakeCv2:
     CAP_PROP_FRAME_WIDTH = 3
     CAP_PROP_FRAME_HEIGHT = 4
+    CAP_PROP_POS_FRAMES = 1
     COLOR_BGR2RGB = 4
 
     def __init__(self, frames: list[object], *, openable: bool = True) -> None:
+        # Index-based (not pop) so a re-seek to frame 0 replays the clip, which
+        # is how loop playback is exercised.
         self._frames = list(frames)
+        self._index = 0
         self._openable = openable
         self.opened_with: object | None = None
         self.prop_sets: list[tuple[int, object]] = []
@@ -510,12 +609,16 @@ class _FakeCv2:
         return self._openable
 
     def read(self) -> tuple[bool, object | None]:
-        if not self._frames:
+        if self._index >= len(self._frames):
             return False, None
-        return True, self._frames.pop(0)
+        frame = self._frames[self._index]
+        self._index += 1
+        return True, frame
 
-    def set(self, prop: int, value: object) -> None:
+    def set(self, prop: int, value: float) -> None:
         self.prop_sets.append((prop, value))
+        if prop == self.CAP_PROP_POS_FRAMES:
+            self._index = int(value)
 
     def cvtColor(self, frame: object, code: int) -> object:  # noqa: N802 - mimics cv2 API
         return frame

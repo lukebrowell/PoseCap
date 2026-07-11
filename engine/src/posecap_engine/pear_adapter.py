@@ -38,7 +38,8 @@ class CameraSource:
 
 @dataclass(frozen=True)
 class VideoFileSource:
-    """A finite video file; EOF ends the stream instead of retrying."""
+    """A finite video file. EOF ends the stream unless looping is enabled
+    (PearLiveConfig.source_loop), in which case it replays from frame 0."""
 
     path: str
 
@@ -59,6 +60,9 @@ class PearLiveConfig:
     # yolov8s: person detection at ~1/3 the cost of yolov8x with identical
     # detection rate on the fixture set — the swap that reaches 30 FPS.
     yolo_model: str = "yolov8s"
+    # Replay a finite video source from the start on EOF instead of ending the
+    # stream. Ignored for a live camera, which never reaches EOF.
+    source_loop: bool = False
 
 
 class _PearRuntime(Protocol):
@@ -106,6 +110,7 @@ class PearFrameSource:
         yolo_threshold: float = 0.3,
         crop_ratio: float = 1.75,
         yolo_model: str = "yolov8s",
+        source_loop: bool = False,
         runtime_factory: RuntimeFactory | None = None,
         capture_factory: CaptureFactory | None = None,
         clock: Clock = time.time,
@@ -122,6 +127,7 @@ class PearFrameSource:
             yolo_threshold=yolo_threshold,
             crop_ratio=crop_ratio,
             yolo_model=yolo_model,
+            source_loop=source_loop,
         )
         self._runtime_factory = runtime_factory or _load_pear_runtime
         self._capture_factory = capture_factory or _open_live_capture
@@ -204,12 +210,14 @@ class _OpenCvLiveCapture:
 
 
 class _VideoFileCapture:
-    """Finite frame source for a video file; EOF ends the stream instead of retrying."""
+    """Frame source for a video file. On EOF the stream ends, unless
+    source_loop is set, in which case it re-seeks to frame 0 and replays."""
 
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
         if not isinstance(config.source, VideoFileSource):
             raise ValueError("_VideoFileCapture requires a VideoFileSource")
         self._cv2 = cv2
+        self._loop = config.source_loop
         self.exhausted = False
         self._capture = cv2.VideoCapture(config.source.path)
         if not bool(self._capture.isOpened()):
@@ -219,9 +227,23 @@ class _VideoFileCapture:
     def read_rgb(self) -> object | None:
         ok, frame = self._capture.read()
         if not bool(ok):
+            frame = self._read_looped_frame()
+        if frame is None:
             self.exhausted = True
             return None
         return self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
+
+    def _read_looped_frame(self) -> object | None:
+        """On EOF, replay from frame 0 when looping; None when the clip is spent.
+
+        Guards a 0-frame or unreadable clip: a re-seek that still yields no
+        frame ends the stream instead of spinning forever.
+        """
+        if not self._loop:
+            return None
+        self._capture.set(self._cv2.CAP_PROP_POS_FRAMES, 0)
+        ok, frame = self._capture.read()
+        return frame if bool(ok) else None
 
     def release(self) -> None:
         self._capture.release()
