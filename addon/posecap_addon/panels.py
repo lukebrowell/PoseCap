@@ -1,5 +1,7 @@
 """Blender UI panel adapters for PoseCap live streaming."""
 
+from __future__ import annotations
+
 import importlib
 import logging
 import os
@@ -46,7 +48,7 @@ ADDON_ID = (
 )
 
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
-_ACTIVE_SESSION: "_LiveStreamSession | None" = None
+_ACTIVE_SESSION: _LiveStreamSession | None = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 
 # First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
@@ -510,8 +512,10 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
     settings = _settings_from_context(context)
     wm_group = getattr(context.window_manager, WM_MODEL_SETUP_PROPERTY_NAME, None)
     if wm_group is not None:
-        preferences = _addon_preferences(context)
-        pear_root = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
+        # Resolve with the SAME fallback the engine uses (explicit -> env ->
+        # installer default), or a fresh install shows nothing typed, the
+        # model-setup guidance stays hidden, and a new user is stuck.
+        pear_root = _panel_pear_root(context)
         draw_body_models_section(
             layout,
             wm_group,
@@ -526,6 +530,20 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
 
 def _settings_from_context(context: Any) -> Any:
     return getattr(context.scene, SCENE_PROPERTY_NAME)
+
+
+def _panel_pear_root(
+    context: Any,
+    *,
+    environ: dict[str, str] | None = None,
+    path_exists: PathExists | None = None,
+) -> str:
+    """Draw-time PEAR Root using the full engine fallback (installer default too)."""
+    settings = _settings_from_context(context)
+    preferences = _addon_preferences(context)
+    env = environ if environ is not None else dict(os.environ)
+    exists = path_exists if path_exists is not None else (lambda path: path.exists())
+    return _resolve_pear_root(settings, preferences, env, exists)
 
 
 def _is_armature_object(_settings: Any, candidate: Any) -> bool:

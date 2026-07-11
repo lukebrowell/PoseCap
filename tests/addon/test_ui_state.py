@@ -309,6 +309,9 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
 
 
 def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
+    # execute() resolves the engine via real os.environ; hide any installed
+    # runtime so this asserts the explicit settings, not the build machine.
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     bpy = _FakeBpy()
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
@@ -472,6 +475,30 @@ def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
     assert command[0] == str(installer_exe)
 
 
+def test_panel_resolves_installer_pear_root_on_a_fresh_install() -> None:
+    # Fresh install, nothing typed: the model-setup section must still detect the
+    # installer's pear dir (the same fallback the engine uses), or a new user
+    # never sees the model-download guidance and is stuck.
+    from types import SimpleNamespace
+
+    settings = _Settings(lifecycle_state="STOPPED")  # pear_root == ""
+    preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
+    local = "C:/Users/Corridor/AppData/Local"
+    installer_pear = Path(local, "PoseCap", "pear")
+    context = SimpleNamespace(
+        scene=SimpleNamespace(posecap=settings),
+        preferences=SimpleNamespace(
+            addons={posecap_addon.panels.ADDON_ID: SimpleNamespace(preferences=preferences)}
+        ),
+    )
+
+    resolved = posecap_addon.panels._panel_pear_root(
+        context, environ={"LOCALAPPDATA": local}, path_exists={installer_pear}.__contains__
+    )
+
+    assert resolved == str(installer_pear)
+
+
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
@@ -614,6 +641,9 @@ def test_engine_command_falls_back_to_path_name_for_dev_without_installer() -> N
 def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty(
     monkeypatch,
 ) -> None:
+    # Hide any installed runtime so the installer fallback can't shadow the
+    # addon-preference values this test asserts.
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     bpy = _FakeBpy()
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
