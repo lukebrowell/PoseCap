@@ -20,6 +20,12 @@ from .character_setup_panel import (
 )
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
+from .keyframe_manager import (
+    KEY_POSES_INDEX_PROPERTY,
+    KEY_POSES_PROPERTY,
+    build_keyframe_manager_classes,
+    draw_keyframe_manager_section,
+)
 from .model_setup_panel import (
     active_model_setup_session,
     build_model_setup_classes,
@@ -196,6 +202,17 @@ def register_blender_ui(bpy_module: Any) -> None:
         WM_MODEL_SETUP_PROPERTY_NAME,
         bpy_module.props.PointerProperty(type=model_setup_group),
     )
+    key_pose_item = next(cls for cls in classes if cls.__name__ == "POSECAP_PG_KeyPoseItem")
+    setattr(
+        bpy_module.types.Scene,
+        KEY_POSES_PROPERTY,
+        bpy_module.props.CollectionProperty(type=key_pose_item),
+    )
+    setattr(
+        bpy_module.types.Scene,
+        KEY_POSES_INDEX_PROPERTY,
+        bpy_module.props.IntProperty(default=0),
+    )
     _REGISTERED_CLASSES = classes
 
 
@@ -203,8 +220,9 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     """Unregister PoseCap UI classes against a bpy-like module."""
     global _REGISTERED_CLASSES
     _stop_active_session(bpy_module)
-    if hasattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME):
-        delattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME)
+    for scene_property in (SCENE_PROPERTY_NAME, KEY_POSES_PROPERTY, KEY_POSES_INDEX_PROPERTY):
+        if hasattr(bpy_module.types.Scene, scene_property):
+            delattr(bpy_module.types.Scene, scene_property)
     if hasattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME):
         delattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME)
     if not _REGISTERED_CLASSES:
@@ -472,6 +490,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
     setup_operator_classes = build_model_setup_classes(bpy_module)
     character_operator_classes = build_character_setup_classes(bpy_module)
     recording_operator_classes = build_recording_classes(bpy_module)
+    keyframe_manager_classes = build_keyframe_manager_classes(bpy_module)
 
     return (
         POSECAP_PG_LiveStreamSettings,
@@ -482,6 +501,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         *setup_operator_classes,
         *character_operator_classes,
         *recording_operator_classes,
+        *keyframe_manager_classes,
         POSECAP_PT_LiveStream,
     )
 
@@ -500,6 +520,9 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
         )
     draw_live_stream_panel(layout, settings)
     draw_character_setup_section(layout, settings)
+    if getattr(settings, "target_armature", None) is not None:
+        key_poses = getattr(context.scene, KEY_POSES_PROPERTY, None)
+        draw_keyframe_manager_section(layout, key_poses, context.scene)
 
 
 def _settings_from_context(context: Any) -> Any:

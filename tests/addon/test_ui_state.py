@@ -261,11 +261,21 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_StartRecording",
         "POSECAP_OT_StopRecording",
+        "POSECAP_PG_KeyPoseItem",
+        "POSECAP_UL_KeyPoseList",
+        "POSECAP_OT_AddKeyPose",
+        "POSECAP_OT_RemoveKeyPose",
+        "POSECAP_OT_ClearKeyPoses",
+        "POSECAP_OT_AddAllActiveKeyframes",
+        "POSECAP_OT_BakeRetainKeyPoses",
         "POSECAP_PT_LiveStream",
     ]
     preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
     assert preferences_cls.bl_idname == ADDON_ID
-    assert getattr(bpy.types.Scene, SCENE_PROPERTY_NAME)[0] == "PointerProperty"
+    scene_type: Any = bpy.types.Scene
+    assert getattr(scene_type, SCENE_PROPERTY_NAME)[0] == "PointerProperty"
+    assert scene_type.posecap_key_poses[0] == "CollectionProperty"
+    assert scene_type.posecap_key_poses_index[0] == "IntProperty"
     window_manager_type: Any = bpy.types.WindowManager
     assert window_manager_type.posecap_model_setup[0] == "PointerProperty"
 
@@ -273,9 +283,18 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
     unregister_blender_ui(bpy)
 
     assert not hasattr(bpy.types.Scene, SCENE_PROPERTY_NAME)
+    assert not hasattr(bpy.types.Scene, "posecap_key_poses")
+    assert not hasattr(bpy.types.Scene, "posecap_key_poses_index")
     assert not hasattr(bpy.types.WindowManager, "posecap_model_setup")
     assert [cls.__name__ for cls in bpy.utils.unregistered] == [
         "POSECAP_PT_LiveStream",
+        "POSECAP_OT_BakeRetainKeyPoses",
+        "POSECAP_OT_AddAllActiveKeyframes",
+        "POSECAP_OT_ClearKeyPoses",
+        "POSECAP_OT_RemoveKeyPose",
+        "POSECAP_OT_AddKeyPose",
+        "POSECAP_UL_KeyPoseList",
+        "POSECAP_PG_KeyPoseItem",
         "POSECAP_OT_StopRecording",
         "POSECAP_OT_StartRecording",
         "POSECAP_OT_ConvertCharacter",
@@ -1217,6 +1236,9 @@ class _FakeBpyTypes:
         def report(self, _levels, _message):
             return None
 
+    class UIList:
+        pass
+
     class Object:
         pass
 
@@ -1245,6 +1267,9 @@ class _FakeBpyProps:
 
     def PointerProperty(self, **kwargs: object) -> tuple[str, object]:
         return ("PointerProperty", kwargs)
+
+    def CollectionProperty(self, **kwargs: object) -> tuple[str, object]:
+        return ("CollectionProperty", kwargs)
 
 
 class _FakeBpyUtils:
