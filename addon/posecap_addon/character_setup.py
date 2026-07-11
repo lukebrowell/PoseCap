@@ -1,4 +1,4 @@
-"""Convert a humanoid character armature to the PoseCap target convention.
+"""Blender-side conversion of a humanoid armature to the PoseCap convention.
 
 Implements doc/workflows.md § "Target armature requirements" for armatures
 that don't follow it: (1) optionally re-rest the arms to a T-pose, (2)
@@ -7,136 +7,55 @@ reorient mapped bones (+Z tails, local z toward -Y) so pose-bone local axes
 equal the SMPL-X joint frame, then (4) self-verify with synthetic
 left_shoulder raise/swing probes.
 
-Presets ship for the Unreal Engine humanoid skeleton (validated on two
-Fortnite exports) and the Mixamo skeleton (Adobe's free character library;
-grounded on the mixamorig <-> SMPL correspondence used across retarget
-tools). Skeleton family is auto-detected from bone names.
-
-This module is loadable standalone (stdlib only; ``bpy`` arrives as a
-parameter) so the dev CLI in tools/convert_target_armature.py can run it
-inside ``blender --background`` without the extension installed. It shares
-no imports with the rest of the addon on purpose.
+The pure retarget domain (skeleton presets, family detection, mapping tables,
+validation, probe expectations) lives in ``posecap_core.retarget`` and the
+quaternion math in ``posecap_core.rotation``; this module re-exports those and
+holds only the ``bpy`` orchestration. The re-export keeps the module a single
+import surface for the dev CLI in tools/convert_target_armature.py, which loads
+it by file path inside ``blender --background`` — that CLI puts the workspace
+``core/src`` and ``contracts/src`` on ``sys.path`` first so ``posecap_core``
+resolves without the extension installed.
 """
 
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass
 
-SMPLX_BODY_JOINTS = (
-    "pelvis",
-    "left_hip",
-    "right_hip",
-    "spine1",
-    "left_knee",
-    "right_knee",
-    "spine2",
-    "left_ankle",
-    "right_ankle",
-    "spine3",
-    "left_foot",
-    "right_foot",
-    "neck",
-    "left_collar",
-    "right_collar",
-    "head",
-    "left_shoulder",
-    "right_shoulder",
-    "left_elbow",
-    "right_elbow",
-    "left_wrist",
-    "right_wrist",
+from posecap_core import (
+    ARM_TARGETS,
+    SMPLX_BODY_JOINTS,
+    UE_MAPPING,
+    PoseCapError,
+    SkeletonPreset,
+    axis_angle_to_quaternion,
+    detect_skeleton_preset,
+    mixamo_preset,
+    probe_expectations,
+    ue_preset,
+    validate_mapping,
 )
 
-# Unreal Engine humanoid skeleton (Fortnite exports use it verbatim).
-UE_MAPPING: dict[str, str] = {
-    "pelvis": "pelvis",
-    "left_hip": "thigh_l",
-    "right_hip": "thigh_r",
-    "spine1": "spine_01",
-    "left_knee": "calf_l",
-    "right_knee": "calf_r",
-    "spine2": "spine_03",
-    "left_ankle": "foot_l",
-    "right_ankle": "foot_r",
-    "spine3": "spine_05",
-    "left_foot": "ball_l",
-    "right_foot": "ball_r",
-    "neck": "neck_01",
-    "left_collar": "clavicle_l",
-    "right_collar": "clavicle_r",
-    "head": "head",
-    "left_shoulder": "upperarm_l",
-    "right_shoulder": "upperarm_r",
-    "left_elbow": "lowerarm_l",
-    "right_elbow": "lowerarm_r",
-    "left_wrist": "hand_l",
-    "right_wrist": "hand_r",
-}
-
-# Mixamo skeleton suffixes (index-aligned with the SMPL joint order; the
-# export prefix varies — "mixamorig:", "mixamorig5:", or none at all).
-_MIXAMO_SUFFIXES: dict[str, str] = {
-    "pelvis": "Hips",
-    "left_hip": "LeftUpLeg",
-    "right_hip": "RightUpLeg",
-    "spine1": "Spine",
-    "left_knee": "LeftLeg",
-    "right_knee": "RightLeg",
-    "spine2": "Spine1",
-    "left_ankle": "LeftFoot",
-    "right_ankle": "RightFoot",
-    "spine3": "Spine2",
-    "left_foot": "LeftToeBase",
-    "right_foot": "RightToeBase",
-    "neck": "Neck",
-    "left_collar": "LeftShoulder",
-    "right_collar": "RightShoulder",
-    "head": "Head",
-    "left_shoulder": "LeftArm",
-    "right_shoulder": "RightArm",
-    "left_elbow": "LeftForeArm",
-    "right_elbow": "RightForeArm",
-    "left_wrist": "LeftHand",
-    "right_wrist": "RightHand",
-}
-
-_MIXAMO_PREFIX_PATTERN = re.compile(r"^(mixamorig\d*[:_])Hips$")
-
-# Arm chains re-rested to a T-pose: (bone, reference child whose HEAD gives
-# the limb direction — UE exports orient bone tails off-limb, so tails lie).
-_UE_ARM_CHAINS = {
-    "l": (
-        ("upperarm_l", "lowerarm_l"),
-        ("lowerarm_l", "hand_l"),
-        ("hand_l", "middle_metacarpal_l"),
-    ),
-    "r": (
-        ("upperarm_r", "lowerarm_r"),
-        ("lowerarm_r", "hand_r"),
-        ("hand_r", "middle_metacarpal_r"),
-    ),
-}
-ARM_TARGETS = {"l": (1.0, 0.0, 0.0), "r": (-1.0, 0.0, 0.0)}
-
-Quaternion = tuple[float, float, float, float]
-ArmChains = dict[str, tuple[tuple[str, str], ...]]
+# Public surface: the re-exported retarget domain plus this module's bpy
+# conversion API. Listed so the facade re-exports read as intentional.
+__all__ = [
+    "ARM_TARGETS",
+    "SMPLX_BODY_JOINTS",
+    "UE_MAPPING",
+    "ConversionError",
+    "ConversionResult",
+    "SkeletonPreset",
+    "convert_armature",
+    "detect_skeleton_preset",
+    "mixamo_preset",
+    "probe_expectations",
+    "ue_preset",
+    "validate_mapping",
+]
 
 
-class ConversionError(RuntimeError):
-    """A conversion failure with a user-facing message."""
-
-
-@dataclass(frozen=True)
-class SkeletonPreset:
-    """One convertible skeleton family."""
-
-    name: str
-    label: str
-    mapping: dict[str, str]
-    arm_chains: ArmChains
-    already_t_pose: bool
+class ConversionError(PoseCapError):
+    """A conversion failure with a user-facing message (GUIDELINES §2.2)."""
 
 
 @dataclass(frozen=True)
@@ -145,88 +64,6 @@ class ConversionResult:
 
     probe_lines: tuple[str, ...]
     max_probe_error: float
-
-
-def ue_preset() -> SkeletonPreset:
-    return SkeletonPreset(
-        name="ue",
-        label="Unreal Engine / Fortnite",
-        mapping=dict(UE_MAPPING),
-        arm_chains=_UE_ARM_CHAINS,
-        already_t_pose=False,
-    )
-
-
-def mixamo_mapping(prefix: str) -> dict[str, str]:
-    """The Mixamo bone mapping for one export prefix ('' when stripped)."""
-    return {joint: prefix + suffix for joint, suffix in _MIXAMO_SUFFIXES.items()}
-
-
-def mixamo_preset(prefix: str) -> SkeletonPreset:
-    # Mixamo characters download in T-pose; the UE-style A-pose re-rest
-    # would corrupt an already correct rest pose.
-    chains: ArmChains = {
-        "l": (
-            (prefix + "LeftArm", prefix + "LeftForeArm"),
-            (prefix + "LeftForeArm", prefix + "LeftHand"),
-            (prefix + "LeftHand", prefix + "LeftHandMiddle1"),
-        ),
-        "r": (
-            (prefix + "RightArm", prefix + "RightForeArm"),
-            (prefix + "RightForeArm", prefix + "RightHand"),
-            (prefix + "RightHand", prefix + "RightHandMiddle1"),
-        ),
-    }
-    return SkeletonPreset(
-        name="mixamo",
-        label="Mixamo",
-        mapping=mixamo_mapping(prefix),
-        arm_chains=chains,
-        already_t_pose=True,
-    )
-
-
-def detect_skeleton_preset(bone_names: set[str] | frozenset[str]) -> SkeletonPreset | None:
-    """Sniff the skeleton family from bone names (None when unrecognized)."""
-    names = set(bone_names)
-    if {"thigh_l", "clavicle_l"} <= names:
-        return ue_preset()
-    for name in names:
-        match = _MIXAMO_PREFIX_PATTERN.match(name)
-        if match and match.group(1) + "LeftUpLeg" in names:
-            return mixamo_preset(match.group(1))
-    if {"Hips", "LeftUpLeg", "LeftForeArm"} <= names:
-        return mixamo_preset("")
-    return None
-
-
-def validate_mapping(mapping: dict[str, str]) -> list[str]:
-    """Return the SMPL-X joints missing from a mapping (empty = valid)."""
-    return [name for name in SMPLX_BODY_JOINTS if name not in mapping]
-
-
-def axis_angle_quaternion(axis_angle: tuple[float, float, float]) -> Quaternion:
-    """WXYZ quaternion from a Rodrigues vector — mirrors core.rotation semantics."""
-    x, y, z = axis_angle
-    angle = math.sqrt(x * x + y * y + z * z)
-    if angle < 1e-12:
-        return (1.0, 0.0, 0.0, 0.0)
-    half = angle / 2.0
-    scale = math.sin(half) / angle
-    return (math.cos(half), x * scale, y * scale, z * scale)
-
-
-def probe_expectations(arm_length: float) -> dict[str, tuple[float, float, float]]:
-    """Expected world elbow displacement per probe on a correct armature.
-
-    raise_z (+z 90 deg): the T-pose arm (along +X) swings up — the elbow rises
-    by the shoulder-to-elbow length and pulls inward by the same amount.
-    swing_y (+y 90 deg): the arm swings behind the body (+Y world).
-    """
-    return {
-        "raise_z": (-arm_length, 0.0, arm_length),
-        "swing_y": (-arm_length, arm_length, 0.0),
-    }
 
 
 def convert_armature(
@@ -339,7 +176,7 @@ def _verify(bpy, arm_obj, relative_tolerance):  # pragma: no cover - Blender onl
             pose_bone.rotation_mode = "QUATERNION"
             pose_bone.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
         before = elbow_world()
-        quaternion = axis_angle_quaternion(axis_angle)
+        quaternion = tuple(axis_angle_to_quaternion(axis_angle))
         arm_obj.pose.bones["left_shoulder"].rotation_quaternion = quaternion
         return elbow_world() - before
 

@@ -1,0 +1,197 @@
+"""Retarget domain: skeleton presets, bone-name mapping, and probe expectations.
+
+Pure logic (stdlib only) that maps a humanoid character skeleton onto the
+SMPL-X joint convention. The Blender-side orchestration that applies this to a
+live armature lives in the addon (``character_setup.py``); this module holds
+the family tables, family detection, mapping validation, and the geometric
+probe expectations the converter self-verifies against.
+
+Presets ship for the Unreal Engine humanoid skeleton (validated on two
+Fortnite exports) and the Mixamo skeleton (Adobe's free character library;
+grounded on the mixamorig <-> SMPL correspondence used across retarget tools).
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+SMPLX_BODY_JOINTS = (
+    "pelvis",
+    "left_hip",
+    "right_hip",
+    "spine1",
+    "left_knee",
+    "right_knee",
+    "spine2",
+    "left_ankle",
+    "right_ankle",
+    "spine3",
+    "left_foot",
+    "right_foot",
+    "neck",
+    "left_collar",
+    "right_collar",
+    "head",
+    "left_shoulder",
+    "right_shoulder",
+    "left_elbow",
+    "right_elbow",
+    "left_wrist",
+    "right_wrist",
+)
+
+# Unreal Engine humanoid skeleton (Fortnite exports use it verbatim).
+UE_MAPPING: dict[str, str] = {
+    "pelvis": "pelvis",
+    "left_hip": "thigh_l",
+    "right_hip": "thigh_r",
+    "spine1": "spine_01",
+    "left_knee": "calf_l",
+    "right_knee": "calf_r",
+    "spine2": "spine_03",
+    "left_ankle": "foot_l",
+    "right_ankle": "foot_r",
+    "spine3": "spine_05",
+    "left_foot": "ball_l",
+    "right_foot": "ball_r",
+    "neck": "neck_01",
+    "left_collar": "clavicle_l",
+    "right_collar": "clavicle_r",
+    "head": "head",
+    "left_shoulder": "upperarm_l",
+    "right_shoulder": "upperarm_r",
+    "left_elbow": "lowerarm_l",
+    "right_elbow": "lowerarm_r",
+    "left_wrist": "hand_l",
+    "right_wrist": "hand_r",
+}
+
+# Mixamo skeleton suffixes (index-aligned with the SMPL joint order; the
+# export prefix varies — "mixamorig:", "mixamorig5:", or none at all).
+_MIXAMO_SUFFIXES: dict[str, str] = {
+    "pelvis": "Hips",
+    "left_hip": "LeftUpLeg",
+    "right_hip": "RightUpLeg",
+    "spine1": "Spine",
+    "left_knee": "LeftLeg",
+    "right_knee": "RightLeg",
+    "spine2": "Spine1",
+    "left_ankle": "LeftFoot",
+    "right_ankle": "RightFoot",
+    "spine3": "Spine2",
+    "left_foot": "LeftToeBase",
+    "right_foot": "RightToeBase",
+    "neck": "Neck",
+    "left_collar": "LeftShoulder",
+    "right_collar": "RightShoulder",
+    "head": "Head",
+    "left_shoulder": "LeftArm",
+    "right_shoulder": "RightArm",
+    "left_elbow": "LeftForeArm",
+    "right_elbow": "RightForeArm",
+    "left_wrist": "LeftHand",
+    "right_wrist": "RightHand",
+}
+
+_MIXAMO_PREFIX_PATTERN = re.compile(r"^(mixamorig\d*[:_])Hips$")
+
+# Arm chains re-rested to a T-pose: (bone, reference child whose HEAD gives
+# the limb direction — UE exports orient bone tails off-limb, so tails lie).
+_UE_ARM_CHAINS = {
+    "l": (
+        ("upperarm_l", "lowerarm_l"),
+        ("lowerarm_l", "hand_l"),
+        ("hand_l", "middle_metacarpal_l"),
+    ),
+    "r": (
+        ("upperarm_r", "lowerarm_r"),
+        ("lowerarm_r", "hand_r"),
+        ("hand_r", "middle_metacarpal_r"),
+    ),
+}
+ARM_TARGETS = {"l": (1.0, 0.0, 0.0), "r": (-1.0, 0.0, 0.0)}
+
+ArmChains = dict[str, tuple[tuple[str, str], ...]]
+
+
+@dataclass(frozen=True)
+class SkeletonPreset:
+    """One convertible skeleton family."""
+
+    name: str
+    label: str
+    mapping: dict[str, str]
+    arm_chains: ArmChains
+    already_t_pose: bool
+
+
+def ue_preset() -> SkeletonPreset:
+    return SkeletonPreset(
+        name="ue",
+        label="Unreal Engine / Fortnite",
+        mapping=dict(UE_MAPPING),
+        arm_chains=_UE_ARM_CHAINS,
+        already_t_pose=False,
+    )
+
+
+def mixamo_mapping(prefix: str) -> dict[str, str]:
+    """The Mixamo bone mapping for one export prefix ('' when stripped)."""
+    return {joint: prefix + suffix for joint, suffix in _MIXAMO_SUFFIXES.items()}
+
+
+def mixamo_preset(prefix: str) -> SkeletonPreset:
+    # Mixamo characters download in T-pose; the UE-style A-pose re-rest
+    # would corrupt an already correct rest pose.
+    chains: ArmChains = {
+        "l": (
+            (prefix + "LeftArm", prefix + "LeftForeArm"),
+            (prefix + "LeftForeArm", prefix + "LeftHand"),
+            (prefix + "LeftHand", prefix + "LeftHandMiddle1"),
+        ),
+        "r": (
+            (prefix + "RightArm", prefix + "RightForeArm"),
+            (prefix + "RightForeArm", prefix + "RightHand"),
+            (prefix + "RightHand", prefix + "RightHandMiddle1"),
+        ),
+    }
+    return SkeletonPreset(
+        name="mixamo",
+        label="Mixamo",
+        mapping=mixamo_mapping(prefix),
+        arm_chains=chains,
+        already_t_pose=True,
+    )
+
+
+def detect_skeleton_preset(bone_names: set[str] | frozenset[str]) -> SkeletonPreset | None:
+    """Sniff the skeleton family from bone names (None when unrecognized)."""
+    names = set(bone_names)
+    if {"thigh_l", "clavicle_l"} <= names:
+        return ue_preset()
+    for name in names:
+        match = _MIXAMO_PREFIX_PATTERN.match(name)
+        if match and match.group(1) + "LeftUpLeg" in names:
+            return mixamo_preset(match.group(1))
+    if {"Hips", "LeftUpLeg", "LeftForeArm"} <= names:
+        return mixamo_preset("")
+    return None
+
+
+def validate_mapping(mapping: dict[str, str]) -> list[str]:
+    """Return the SMPL-X joints missing from a mapping (empty = valid)."""
+    return [name for name in SMPLX_BODY_JOINTS if name not in mapping]
+
+
+def probe_expectations(arm_length: float) -> dict[str, tuple[float, float, float]]:
+    """Expected world elbow displacement per probe on a correct armature.
+
+    raise_z (+z 90 deg): the T-pose arm (along +X) swings up — the elbow rises
+    by the shoulder-to-elbow length and pulls inward by the same amount.
+    swing_y (+y 90 deg): the arm swings behind the body (+Y world).
+    """
+    return {
+        "raise_z": (-arm_length, 0.0, arm_length),
+        "swing_y": (-arm_length, arm_length, 0.0),
+    }

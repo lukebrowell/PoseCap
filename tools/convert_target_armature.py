@@ -24,12 +24,31 @@ import json
 import sys
 from pathlib import Path
 
-_CHARACTER_SETUP_PATH = (
-    Path(__file__).resolve().parents[1] / "addon" / "posecap_addon" / "character_setup.py"
-)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_CHARACTER_SETUP_PATH = _REPO_ROOT / "addon" / "posecap_addon" / "character_setup.py"
+
+
+def _ensure_workspace_packages_importable() -> None:
+    """Front-load the workspace ``core/`` and ``contracts/`` source roots on sys.path.
+
+    character_setup now imports posecap_core; inside ``blender --background``
+    from a repo checkout the extension is not installed, so those source roots
+    must be importable before the module is loaded. Insert unconditionally at the
+    front (not guarded on posecap_core resolving): Blender exposes an installed
+    extension's *vendored* posecap_core on sys.path even under --factory-startup,
+    and that copy can be a stale build — the dev CLI must run the current
+    workspace code, so the workspace roots have to shadow it. Idempotent: a root
+    already present is not re-added. Harmless in the test env, where the workspace
+    source is what posecap_core already resolves to.
+    """
+    for package in ("core", "contracts"):
+        source_root = str(_REPO_ROOT / package / "src")
+        if source_root not in sys.path:
+            sys.path.insert(0, source_root)
 
 
 def _load_character_setup():
+    _ensure_workspace_packages_importable()
     spec = importlib.util.spec_from_file_location("posecap_character_setup", _CHARACTER_SETUP_PATH)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load {_CHARACTER_SETUP_PATH}")
@@ -47,7 +66,6 @@ SMPLX_BODY_JOINTS = _character_setup.SMPLX_BODY_JOINTS
 DEFAULT_UE_MAPPING = _character_setup.UE_MAPPING
 ARM_TARGETS = _character_setup.ARM_TARGETS
 validate_mapping = _character_setup.validate_mapping
-axis_angle_quaternion = _character_setup.axis_angle_quaternion
 probe_expectations = _character_setup.probe_expectations
 
 

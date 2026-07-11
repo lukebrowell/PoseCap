@@ -1,12 +1,23 @@
-"""Behavior tests for the character-setup converter presets (task 0008)."""
+"""Behavior tests for the retarget domain (task 0011).
 
-from posecap_addon.character_setup import (
+Relocated from tests/addon/test_character_setup.py: the preset/mapping/
+detection/validation logic is pure domain and now lives in posecap_core,
+tested without Blender.
+"""
+
+import math
+
+import numpy as np
+import pytest
+from posecap_core.retarget import (
     SMPLX_BODY_JOINTS,
     UE_MAPPING,
     detect_skeleton_preset,
     mixamo_mapping,
+    probe_expectations,
     validate_mapping,
 )
+from posecap_core.rotation import axis_angle_to_quaternion
 
 
 def test_ue_mapping_covers_all_smplx_body_joints() -> None:
@@ -70,3 +81,27 @@ def test_mixamo_characters_skip_the_tpose_re_rest_and_ue_does_not() -> None:
     mixamo = detect_skeleton_preset({"mixamorig:Hips", "mixamorig:LeftUpLeg"})
     assert ue is not None and not ue.already_t_pose
     assert mixamo is not None and mixamo.already_t_pose
+
+
+def test_validate_mapping_reports_missing_joints() -> None:
+    partial = {name: name for name in SMPLX_BODY_JOINTS if not name.startswith("left_")}
+    missing = validate_mapping(partial)
+    assert missing and all(name.startswith("left_") for name in missing)
+
+
+def test_probe_expectations_raise_lifts_and_swing_goes_behind() -> None:
+    expected = probe_expectations(0.3)
+    assert expected["raise_z"] == (-0.3, 0.0, 0.3)
+    assert expected["swing_y"] == (-0.3, 0.3, 0.0)
+
+
+def test_core_quaternion_has_parity_with_the_removed_addon_helper() -> None:
+    # The converter's self-verification dropped its stdlib axis_angle_quaternion
+    # for the single core implementation. Pin numeric parity to what the removed
+    # helper produced: a +z quarter turn and the zero-vector identity.
+    w, x, y, z = axis_angle_to_quaternion(np.array([0.0, 0.0, math.pi / 2]))
+    assert w == pytest.approx(math.cos(math.pi / 4))
+    assert z == pytest.approx(math.sin(math.pi / 4))
+    assert x == pytest.approx(0.0)
+    assert y == pytest.approx(0.0)
+    assert np.allclose(axis_angle_to_quaternion(np.zeros(3)), [1.0, 0.0, 0.0, 0.0])

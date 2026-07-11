@@ -1,6 +1,6 @@
 # Task `0011`: Extract the armature retarget engine into `core/`
 
-**Status:** proposed
+**Status:** done
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -29,40 +29,40 @@ architectural debt without regressing the converter.
 
 ## Acceptance Criteria
 
-- [ ] Pure retarget logic (joint order, mapping tables, preset detection,
+- [x] Pure retarget logic (joint order, mapping tables, preset detection,
       mapping validation, probe math) lives in `core/` and is imported by the
       addon, not duplicated.
-- [ ] `axis_angle_quaternion` is gone from the addon path; the single
+- [x] `axis_angle_quaternion` is gone from the addon path; the single
       implementation is `posecap_core.rotation.axis_angle_to_quaternion`
       (or a thin core wrapper), with numeric parity proven by a test.
-- [ ] `import-linter` still passes: `core/` imports stdlib + numpy +
+- [x] `import-linter` still passes: `core/` imports stdlib + numpy +
       `contracts/` only; no `bpy`/`mathutils` leak into `core/`.
-- [ ] `tools/convert_target_armature.py` still converts an armature inside
+- [x] `tools/convert_target_armature.py` still converts an armature inside
       `blender --background` (or is replaced by a documented equivalent that
       needs no terminal for the end user — PRD constraint unchanged).
-- [ ] All existing converter tests (`tests/addon/test_character_setup.py`,
+- [x] All existing converter tests (`tests/addon/test_character_setup.py`,
       `tests/addon/test_character_setup_panel.py`,
       `tests/tools/test_convert_target_armature.py`) pass unchanged in intent,
       relocated to `tests/core/` where they now test core.
-- [ ] Full local gate matrix green (ruff, format, pyright Windows + Linux,
+- [x] Full local gate matrix green (ruff, format, pyright Windows + Linux,
       import-linter, pytest).
 
 ## Plan
 
-- [ ] Ground: confirm whether the addon may import `posecap_core` at runtime
+- [x] Ground: confirm whether the addon may import `posecap_core` at runtime
       (it is vendored into the extension wheel — verify) and how the dev CLI
       resolves imports inside `blender --background`.
-- [ ] Move the pure functions/tables into a new `core/src/posecap_core/`
+- [x] Move the pure functions/tables into a new `core/src/posecap_core/`
       module (e.g. `retarget.py`); re-export the needed names.
-- [ ] Replace the addon `axis_angle_quaternion` with the core function;
+- [x] Replace the addon `axis_angle_quaternion` with the core function;
       keep the `bpy`-orchestration functions (`_re_rest_tpose`,
       `_rename_and_reorient`, `_verify`, `convert_armature`) in the addon.
-- [ ] Resolve the dev-CLI import path: either make the shim add the workspace
+- [x] Resolve the dev-CLI import path: either make the shim add the workspace
       `core/src` to `sys.path` before load, or vendor the needed core module
       alongside it — whichever keeps `blender --background` working.
-- [ ] Relocate the pure tests to `tests/core/`; keep the operator/UI tests in
+- [x] Relocate the pure tests to `tests/core/`; keep the operator/UI tests in
       `tests/addon/`.
-- [ ] Run the full gate matrix; `/ad-review` the diff before merge.
+- [x] Run the full gate matrix; `/ad-review` the diff before merge.
 
 ## Notes
 
@@ -75,11 +75,42 @@ blocker — the duplication is numerically correct and the deviation is
 justified by the stdlib-only dev-CLI constraint; this task removes the debt
 deliberately rather than under release pressure.
 
+### 2026-07-11
+
+Done. Pure retarget domain moved verbatim to `core/src/posecap_core/retarget.py`
+(tables, `SkeletonPreset`, presets, `detect_skeleton_preset`, `validate_mapping`,
+`probe_expectations`) and re-exported at `posecap_core` top level to match the
+package's flat re-export idiom. `addon/posecap_addon/character_setup.py` is now a
+facade over that domain plus the `bpy` orchestration; its stdlib
+`axis_angle_quaternion` is deleted — `_verify` uses
+`posecap_core.rotation.axis_angle_to_quaternion`, with parity pinned by
+`tests/core/test_retarget.py::test_core_quaternion_has_parity_with_the_removed_addon_helper`.
+
+Dev-CLI path resolved via the shim (option 1): `_ensure_workspace_packages_importable`
+front-inserts workspace `core/src` + `contracts/src` on `sys.path` before loading
+`character_setup` by file path. Insertion is UNCONDITIONAL and load-bearing —
+Blender exposes an installed extension's *vendored* (possibly stale) `posecap_core`
+on `sys.path` even under `--factory-startup`, so the workspace roots must shadow it.
+A `find_spec`-guarded version was tried and reverted after a `blender
+--background --factory-startup` run imported the stale vendored copy and failed on
+the new `ARM_TARGETS` export (caught by verification, not by the unit gate).
+
+Verified: full local gate green (ruff, format, pyright Win+Linux, import-linter,
+pytest 260 passed); dev CLI loads in `blender --background --factory-startup` with
+`posecap_core` resolving from `core/src` and all pure funcs + the core quaternion
+correct. Two-axis `/ad-review` clean (Spec: all ACs met, no creep; Standards: no
+blockers). The four Standards Concerns were fixed in-slice: dead `Quaternion` alias
+removed, `ConversionError` rooted in `PoseCapError` (§2.2), `retarget` re-exported at
+`posecap_core` top level, and the sys.path guard reverted (above). The full
+end-to-end conversion of a real UE/Mixamo armature was not re-run (no licensed asset
+in the repo); the conversion `bpy` code is unchanged and was validated on two
+Fortnite armatures on 2026-07-10.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
