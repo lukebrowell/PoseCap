@@ -13,6 +13,7 @@ class _FakeCv2:
         self.destroyed: list[str] = []
         self.named: list[str] = []
         self.props: list[tuple[str, int, float]] = []
+        self.resized: list[tuple[str, int, int]] = []
 
     def cvtColor(self, image, code):  # noqa: N802 - mirrors cv2 name
         return ("bgr", code)
@@ -22,6 +23,9 @@ class _FakeCv2:
 
     def setWindowProperty(self, title: str, prop: int, value: float) -> None:  # noqa: N802
         self.props.append((title, prop, value))
+
+    def resizeWindow(self, title: str, width: int, height: int) -> None:  # noqa: N802
+        self.resized.append((title, width, height))
 
     def imshow(self, title: str, _image) -> None:
         self.shown.append(title)
@@ -50,6 +54,18 @@ def test_offer_shows_each_frame_and_pumps_the_event_loop() -> None:
     # window created and pinned on top once, on the first frame only.
     assert cv2.named == ["src"]
     assert cv2.props == [("src", cv2.WND_PROP_TOPMOST, 1.0)]
+
+
+def test_offer_opens_the_window_small_at_a_16_9_default_once() -> None:
+    cv2 = _FakeCv2()
+    window = PreviewWindow(cv2, title="src")
+
+    window.offer(_frame())
+    window.offer(_frame())
+
+    # opens small (not at frame size) but stays resizable via WINDOW_NORMAL;
+    # sized once, on the first frame only.
+    assert cv2.resized == [("src", 480, 270)]
 
 
 def test_close_destroys_the_window_once_opened() -> None:

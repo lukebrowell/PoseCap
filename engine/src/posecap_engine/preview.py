@@ -15,18 +15,29 @@ from typing import Any
 class PreviewWindow:
     """Show each captured frame in an OpenCV window; close on teardown."""
 
-    def __init__(self, cv2: Any, *, title: str = "PoseCap source preview") -> None:
+    def __init__(
+        self,
+        cv2: Any,
+        *,
+        title: str = "PoseCap source preview",
+        width: int = 480,
+        height: int = 270,
+    ) -> None:
         self._cv2 = cv2
         self._title = title
+        self._width = width
+        self._height = height
         self._opened = False
 
     def offer(self, rgb_image: Any) -> None:
         bgr = self._cv2.cvtColor(rgb_image, self._cv2.COLOR_RGB2BGR)
         if not self._opened:
             # Keep it on top so it is visible over a maximized Blender instead
-            # of opening behind it.
+            # of opening behind it. Open small at a 16:9 default rather than at
+            # frame size; WINDOW_NORMAL leaves the user free to resize it.
             with suppress(Exception):
                 self._cv2.namedWindow(self._title, self._cv2.WINDOW_NORMAL)
+                self._cv2.resizeWindow(self._title, self._width, self._height)
                 self._cv2.setWindowProperty(self._title, self._cv2.WND_PROP_TOPMOST, 1.0)
         self._cv2.imshow(self._title, bgr)
         # waitKey pumps the highgui event loop so the window paints and stays
