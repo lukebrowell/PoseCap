@@ -22,6 +22,10 @@ def build_recording_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_description = "Start laying down keyframes at the advancing playhead"
         bl_options = {"REGISTER"}
 
+        @classmethod
+        def poll(cls, context: Any) -> bool:
+            return _lifecycle_state(context) == "STREAMING"
+
         def execute(self, context: Any) -> set[str]:
             return _start_recording(context, bpy_module)
 
@@ -31,10 +35,19 @@ def build_recording_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_description = "Stop recording keyframes and pause the timeline"
         bl_options = {"REGISTER"}
 
+        @classmethod
+        def poll(cls, context: Any) -> bool:
+            return _lifecycle_state(context) == "RECORDING"
+
         def execute(self, context: Any) -> set[str]:
             return _stop_recording(context, bpy_module)
 
     return (POSECAP_OT_StartRecording, POSECAP_OT_StopRecording)
+
+
+def _lifecycle_state(context: Any) -> str:
+    settings = getattr(context.scene, "posecap", None)
+    return str(getattr(settings, "lifecycle_state", "STOPPED"))
 
 
 def _start_recording(context: Any, bpy_module: Any) -> set[str]:
@@ -53,6 +66,17 @@ def _stop_recording(context: Any, bpy_module: Any) -> set[str]:
     settings.status_message = "Streaming"
     _set_animation_playing(context, bpy_module, playing=False)
     return {"FINISHED"}
+
+
+def pause_playback(context: Any, bpy_module: Any) -> None:
+    """Pause timeline playback if it is running.
+
+    Stopping the stream while recording must finalize it (spec Scenario 3): the
+    Record operators drive playback, so a stream stop that bypasses Stop
+    Recording (the Stop Stream button) has to pause the timeline too, or it
+    keeps playing over a dead apply loop.
+    """
+    _set_animation_playing(context, bpy_module, playing=False)
 
 
 def _set_animation_playing(context: Any, bpy_module: Any, *, playing: bool) -> None:

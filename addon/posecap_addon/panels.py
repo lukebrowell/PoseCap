@@ -32,7 +32,7 @@ from .model_setup_panel import (
     draw_body_models_section,
     models_missing,
 )
-from .recording import build_recording_classes
+from .recording import build_recording_classes, pause_playback
 from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
@@ -521,8 +521,7 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
     draw_live_stream_panel(layout, settings)
     draw_character_setup_section(layout, settings)
     if getattr(settings, "target_armature", None) is not None:
-        key_poses = getattr(context.scene, KEY_POSES_PROPERTY, None)
-        draw_keyframe_manager_section(layout, key_poses, context.scene)
+        draw_keyframe_manager_section(layout, context.scene)
 
 
 def _settings_from_context(context: Any) -> Any:
@@ -537,6 +536,10 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     global _ACTIVE_SESSION
     settings = _settings_from_context(context)
     _stop_active_session(bpy_module)
+    # A fresh stream never inherits recording state: a session that ended
+    # abnormally (engine crash, apply error) would otherwise leave the flag set
+    # and silently record into the new stream — the POC's exact defect.
+    settings.record_live_mocap = False
     settings.lifecycle_state = "STARTING"
     settings.status_message = "Starting"
     engine = None
@@ -597,6 +600,10 @@ def _stop_live_stream(context: Any, bpy_module: Any) -> set[str]:
     settings.lifecycle_state = "STOPPED"
     settings.status_message = "Stopped"
     settings.record_live_mocap = False
+    # Stop Stream can be clicked mid-recording (Stop Stream stays enabled while
+    # RECORDING): finalize the recording by pausing the timeline the Record
+    # operator started, or it plays on over a torn-down stream.
+    pause_playback(context, bpy_module)
     return {"FINISHED"}
 
 
@@ -891,6 +898,10 @@ class _LiveStreamSession:
         if self._stopped:
             return
         self._stopped = True
+        # Every teardown path (normal and abnormal) ends any active recording,
+        # so no later stream can inherit the flag. Playback pause stays on the
+        # operator-context stop paths, where the screen context is valid.
+        self._settings.record_live_mocap = False
         if unregister_timer:
             _unregister_timer(bpy_module, self.timer_callback)
         self._timer.stop()

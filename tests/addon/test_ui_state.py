@@ -314,6 +314,9 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
     settings.camera_index = 4
+    # A stale flag left by a previous session that ended abnormally must not
+    # carry into the new stream and silently record (spec R6 / the POC defect).
+    settings.record_live_mocap = True
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -349,6 +352,7 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
 
         assert settings.lifecycle_state == "STARTING"
         assert settings.status_message == "Starting"
+        assert settings.record_live_mocap is False, "start clears any stale record flag"
         assert commands == [
             (
                 "posecap-engine",

@@ -57,6 +57,28 @@ def _context(settings: SimpleNamespace, screen: _Screen) -> SimpleNamespace:
     return SimpleNamespace(scene=SimpleNamespace(posecap=settings), screen=screen)
 
 
+def _poll_context(state: str) -> SimpleNamespace:
+    return SimpleNamespace(scene=SimpleNamespace(posecap=SimpleNamespace(lifecycle_state=state)))
+
+
+def test_start_recording_polls_only_while_streaming() -> None:
+    bpy_module, _ = _fake_bpy(_Screen(is_playing=False))
+    start_cls, _stop_cls = build_recording_classes(bpy_module)
+
+    assert start_cls.poll(_poll_context("STREAMING")) is True
+    assert start_cls.poll(_poll_context("RECORDING")) is False
+    assert start_cls.poll(_poll_context("STOPPED")) is False
+
+
+def test_stop_recording_polls_only_while_recording() -> None:
+    bpy_module, _ = _fake_bpy(_Screen(is_playing=False))
+    _start_cls, stop_cls = build_recording_classes(bpy_module)
+
+    assert stop_cls.poll(_poll_context("RECORDING")) is True
+    assert stop_cls.poll(_poll_context("STREAMING")) is False
+    assert stop_cls.poll(_poll_context("STOPPED")) is False
+
+
 def test_start_recording_sets_flag_enters_recording_and_starts_playback() -> None:
     settings = _settings(lifecycle_state="STREAMING")
     screen = _Screen(is_playing=False)

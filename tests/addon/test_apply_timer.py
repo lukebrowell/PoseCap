@@ -53,6 +53,23 @@ def test_pose_apply_timer_reads_live_recording_flag_each_tick() -> None:
     assert writer.keyframe_flags == [False, True]
 
 
+def test_recording_inserts_one_key_per_applied_frame_not_resampled() -> None:
+    # Density decision (task 0005 AC5): key per streamed frame. Each applied
+    # frame drives exactly one keyframe insert — no resampling collapses or
+    # batches frames. The playhead (advanced by playback) spreads them out.
+    frames = [PoseFrame(SCHEMA_VERSION, seq, 100.0 + seq, "ok", _payload()) for seq in range(3)]
+    writer = _FakeWriter()
+    timer = PoseApplyTimer(
+        _FakeStream(frames), writer, interval_seconds=0.25, insert_keyframes=True
+    )
+
+    for _ in range(3):
+        timer.tick()
+
+    assert writer.keyframe_flags == [True, True, True]
+    assert len(writer.applied) == 3
+
+
 def test_pose_apply_timer_holds_last_pose_on_no_person_frame() -> None:
     stream = _FakeStream(
         [
