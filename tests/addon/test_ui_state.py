@@ -60,9 +60,21 @@ def test_live_stream_panel_draws_state_controls_from_lifecycle() -> None:
 
     assert layout.enabled_for_operator("posecap.start_stream")
     assert not layout.enabled_for_operator("posecap.stop_stream")
-    assert not layout.enabled_for_property("record_live_mocap")
+    assert not layout.enabled_for_operator("posecap.start_recording")
     assert layout.has_property("target_armature")
     assert layout.has_label("Stopped")
+
+
+def test_live_stream_panel_offers_record_when_streaming_and_stop_when_recording() -> None:
+    streaming = _FakeLayout()
+    draw_live_stream_panel(streaming, _Settings(lifecycle_state="STREAMING"))
+    assert streaming.enabled_for_operator("posecap.start_recording")
+    assert not streaming.has_operator("posecap.stop_recording")
+
+    recording = _FakeLayout()
+    draw_live_stream_panel(recording, _Settings(lifecycle_state="RECORDING"))
+    assert recording.enabled_for_operator("posecap.stop_recording")
+    assert not recording.has_operator("posecap.start_recording")
 
 
 def test_live_stream_panel_exposes_pose_smoothing_toggle() -> None:
@@ -247,6 +259,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_ConvertCharacter",
+        "POSECAP_OT_StartRecording",
+        "POSECAP_OT_StopRecording",
         "POSECAP_PT_LiveStream",
     ]
     preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
@@ -262,6 +276,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
     assert not hasattr(bpy.types.WindowManager, "posecap_model_setup")
     assert [cls.__name__ for cls in bpy.utils.unregistered] == [
         "POSECAP_PT_LiveStream",
+        "POSECAP_OT_StopRecording",
+        "POSECAP_OT_StartRecording",
         "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModels",
@@ -1140,6 +1156,9 @@ class _FakeLayout:
 
     def has_property(self, property_name: str) -> bool:
         return any(name == property_name for name, _enabled in self._properties)
+
+    def has_operator(self, operator_id: str) -> bool:
+        return any(name == operator_id for name, _enabled in self._operators)
 
     def has_label(self, text: str) -> bool:
         return text in self._labels

@@ -26,6 +26,7 @@ from .model_setup_panel import (
     draw_body_models_section,
     models_missing,
 )
+from .recording import build_recording_classes
 from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
@@ -135,9 +136,18 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     stop.enabled = controls.can_stop
     stop.operator("posecap.stop_stream", text="Stop Stream", icon="PAUSE")
 
-    record = layout.row()
-    record.enabled = controls.can_record
-    record.prop(settings, "record_live_mocap", toggle=True)
+    _draw_record_control(layout, controls)
+
+
+def _draw_record_control(layout: Any, controls: Any) -> None:
+    """Record is an operator, not a bare toggle: it must also drive timeline
+    playback so keyframes spread across the advancing playhead (spec R6)."""
+    row = layout.row()
+    row.enabled = controls.can_record
+    if controls.is_recording:
+        row.operator("posecap.stop_recording", text="Stop Recording", icon="PAUSE")
+        return
+    row.operator("posecap.start_recording", text="Record Live MoCap", icon="REC")
 
 
 def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
@@ -461,6 +471,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
     setup_operator_classes = build_model_setup_classes(bpy_module)
     character_operator_classes = build_character_setup_classes(bpy_module)
+    recording_operator_classes = build_recording_classes(bpy_module)
 
     return (
         POSECAP_PG_LiveStreamSettings,
@@ -470,6 +481,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         POSECAP_OT_StopStream,
         *setup_operator_classes,
         *character_operator_classes,
+        *recording_operator_classes,
         POSECAP_PT_LiveStream,
     )
 
@@ -537,7 +549,9 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             ),
             apply_orientation_fix=bool(settings.apply_orientation_fix),
             apply_world_position=bool(settings.world_position_experimental),
-            insert_keyframes=bool(settings.record_live_mocap),
+            # Live-read: Record is toggled during an active stream, so the timer
+            # must see the current flag each tick, not the value at start.
+            insert_keyframes=lambda: bool(settings.record_live_mocap),
             on_warning=lambda message: _handle_apply_warning(settings, message),
             on_recovery=lambda: _handle_apply_recovery(settings),
             instrumentation=ApplyTimeInstrumentation(logger=logger),

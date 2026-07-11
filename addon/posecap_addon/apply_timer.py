@@ -45,7 +45,7 @@ class PoseApplyTimer:
         interval_seconds: float = 1.0 / 60.0,
         apply_orientation_fix: bool = True,
         apply_world_position: bool = False,
-        insert_keyframes: bool = False,
+        insert_keyframes: bool | Callable[[], bool] = False,
         on_warning: WarningCallback | None = None,
         on_recovery: RecoveryCallback | None = None,
         instrumentation: ApplyTimeInstrumentation | None = None,
@@ -60,7 +60,11 @@ class PoseApplyTimer:
         self._apply_orientation_fix = apply_orientation_fix
         self._apply_world_position = apply_world_position
         self._translation_origin: np.ndarray | None = None
-        self._insert_keyframes = insert_keyframes
+        # Recording is toggled mid-stream, so the flag is read live each tick.
+        # A plain bool is wrapped so callers that never record pay nothing.
+        self._should_insert_keyframes: Callable[[], bool] = (
+            insert_keyframes if callable(insert_keyframes) else (lambda: insert_keyframes)
+        )
         self._on_warning = on_warning
         self._on_recovery = on_recovery
         self._instrumentation = instrumentation
@@ -110,7 +114,7 @@ class PoseApplyTimer:
             smoother=self._smoother,
             captured_at=frame.captured_at,
         )
-        self._writer.apply(plan, insert_keyframes=self._insert_keyframes)
+        self._writer.apply(plan, insert_keyframes=self._should_insert_keyframes())
         self._writer.tag_redraw()
         self._previous_quaternions = {
             rotation.bone_name: rotation.quaternion for rotation in plan.rotations

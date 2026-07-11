@@ -30,6 +30,29 @@ def test_pose_apply_timer_applies_latest_ok_frame_and_reschedules() -> None:
     assert writer.redraws == 1
 
 
+def test_pose_apply_timer_reads_live_recording_flag_each_tick() -> None:
+    stream = _FakeStream(
+        [
+            PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload()),
+            PoseFrame(SCHEMA_VERSION, 2, 100.5, "ok", _payload()),
+        ]
+    )
+    writer = _FakeWriter()
+    recording = {"on": False}
+    timer = PoseApplyTimer(
+        stream,
+        writer,
+        interval_seconds=0.25,
+        insert_keyframes=lambda: recording["on"],
+    )
+
+    timer.tick()
+    recording["on"] = True
+    timer.tick()
+
+    assert writer.keyframe_flags == [False, True]
+
+
 def test_pose_apply_timer_holds_last_pose_on_no_person_frame() -> None:
     stream = _FakeStream(
         [
@@ -243,6 +266,7 @@ class _FakeWriter:
     def __init__(self, *, valid_states: list[bool] | None = None) -> None:
         self.applied: list[tuple] = []
         self.plans: list[PoseApplication] = []
+        self.keyframe_flags: list[bool] = []
         self.redraws = 0
         self._valid_states = valid_states or [True]
         self._valid_checks = 0
@@ -255,6 +279,7 @@ class _FakeWriter:
     def apply(self, plan, *, insert_keyframes: bool) -> None:
         self.applied.append(plan.rotations)
         self.plans.append(plan)
+        self.keyframe_flags.append(insert_keyframes)
 
     def tag_redraw(self) -> None:
         self.redraws += 1
