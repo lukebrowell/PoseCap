@@ -8,6 +8,7 @@ field is cleared the moment the download starts.
 
 from __future__ import annotations
 
+import os
 import time
 from functools import partial
 from pathlib import Path
@@ -20,6 +21,7 @@ from .model_setup import (
     missing_model_assets,
     verify_models_with_doctor,
 )
+from .pear_root import resolve_pear_root
 
 MODEL_SIGNUP_URLS = {
     "SMPL": "https://smpl.is.tue.mpg.de/register.php",
@@ -52,29 +54,35 @@ def models_missing(pear_root: str) -> bool:
     return result
 
 
-def draw_body_models_section(
-    layout: Any,
-    wm_group: Any,
-    *,
-    models_missing: bool,
-    session: Any | None,
-) -> None:
-    """Draw the one-time body-model setup UI when it is needed."""
-    if session is not None and session.state in ("RUNNING", "WATCHING"):
+def draw_model_setup_status(layout: Any, session: Any | None) -> None:
+    """Show model-download progress in the panel.
+
+    The setup wizard is a transient dialog: once the user clicks OK the
+    credential install runs in the background, so its status needs a home on
+    the always-visible panel. Nothing renders while there is no active run.
+    """
+    if session is None:
+        return
+    if session.state in ("RUNNING", "WATCHING"):
         box = layout.box()
         box.label(text="Body Models", icon="ARMATURE_DATA")
         box.label(text=session.status_message, icon="TIME")
         return
-    if not models_missing:
-        if session is not None and session.state in ("DONE", "FAILED"):
-            layout.box().label(text=session.status_message, icon="INFO")
-        return
+    if session.state in ("DONE", "FAILED"):
+        layout.box().label(text=session.status_message, icon="INFO")
 
-    box = layout.box()
-    box.label(text="Body Models — one-time setup", icon="ARMATURE_DATA")
+
+def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:
+    """The guided body-model setup form shown inside the setup wizard dialog.
+
+    The dialog's OK button runs the credential download (the wizard operator's
+    ``execute``); this only lays out the license step, credentials, and the
+    manual-download alternative.
+    """
+    column = layout.column()
+    column.label(text="PoseCap needs the licensed body models — a free, one-time setup.")
     if wm_group.status != "":
-        box.label(text=wm_group.status, icon="INFO")
-    column = box.column()
+        column.label(text=wm_group.status, icon="INFO")
     column.label(text="1. Create free accounts (use the same email + password):")
     signup_row = column.row(align=True)
     for site_name, url in MODEL_SIGNUP_URLS.items():
@@ -83,8 +91,8 @@ def draw_body_models_section(
     column.label(text="2. Enter that email and password (never saved):")
     column.prop(wm_group, "mpi_email")
     column.prop(wm_group, "mpi_password")
-    column.operator("posecap.setup_body_models", text="Download & Install Models", icon="IMPORT")
-    column.label(text="Prefer the browser? Download the files yourself and")
+    column.label(text="Click OK to download and install the models.")
+    column.label(text="Prefer the browser? Download the files yourself, then:")
     column.operator(
         "posecap.watch_model_downloads",
         text="Watch my Downloads Folder",
@@ -96,6 +104,9 @@ def build_model_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
     """Build the model-setup operator classes against a bpy-like module."""
 
     class POSECAP_OT_SetupBodyModels(bpy_module.types.Operator):
+        # The non-modal install entry: same pipeline as the wizard but no
+        # dialog, so it runs under `blender --background` (headless e2e /
+        # scripted installs) where invoke_props_dialog has no window to open.
         bl_idname = "posecap.setup_body_models"
         bl_label = "Download & Install Models"
         bl_description = (
@@ -105,23 +116,28 @@ def build_model_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_options = {"REGISTER"}
 
         def execute(self, context: Any) -> set[str]:
+            return _start_credential_install(self, context, bpy_module)
+
+    class POSECAP_OT_SetupBodyModelsWizard(bpy_module.types.Operator):
+        bl_idname = "posecap.setup_body_models_wizard"
+        bl_label = "Set Up Body Models"
+        bl_description = (
+            "Guided one-time setup: create free accounts on the official model "
+            "sites, then download the licensed body models with your own account"
+        )
+        bl_options = {"REGISTER"}
+
+        def invoke(self, context: Any, _event: Any) -> set[str]:
+            # A dedicated popup is the guided surface: one obvious dialog the
+            # user cannot miss, over the same install pipeline as the operator.
+            return context.window_manager.invoke_props_dialog(self, width=480)
+
+        def draw(self, context: Any) -> None:
             wm_group = context.window_manager.posecap_model_setup
-            pear_root = _resolve_pear_root(context)
-            if pear_root == "":
-                wm_group.status = "Set the PEAR Root first (in the panel or preferences)."
-                return {"CANCELLED"}
-            email = str(wm_group.mpi_email).strip()
-            password = str(wm_group.mpi_password)
-            if email == "" or password == "":
-                wm_group.status = "Enter the email and password of your model account first."
-                return {"CANCELLED"}
-            credentials = MpiCredentials(email=email, password=password)
-            wm_group.mpi_password = ""
-            wm_group.status = ""
-            session = _new_session(context)
-            session.start_credential_install(Path(pear_root), credentials)
-            _start_session_poll(bpy_module)
-            return {"FINISHED"}
+            draw_body_models_wizard(self.layout, wm_group)
+
+        def execute(self, context: Any) -> set[str]:
+            return _start_credential_install(self, context, bpy_module)
 
     class POSECAP_OT_WatchModelDownloads(bpy_module.types.Operator):
         bl_idname = "posecap.watch_model_downloads"
@@ -136,15 +152,54 @@ def build_model_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             wm_group = context.window_manager.posecap_model_setup
             pear_root = _resolve_pear_root(context)
             if pear_root == "":
-                wm_group.status = "Set the PEAR Root first (in the panel or preferences)."
-                return {"CANCELLED"}
+                return _report_setup_cancelled(
+                    self, wm_group, "Set the PEAR Root first (in the panel or preferences)."
+                )
             wm_group.status = ""
             session = _new_session(context)
             session.start_watching(Path(pear_root), Path.home() / "Downloads")
             _start_session_poll(bpy_module)
             return {"FINISHED"}
 
-    return (POSECAP_OT_SetupBodyModels, POSECAP_OT_WatchModelDownloads)
+    return (
+        POSECAP_OT_SetupBodyModels,
+        POSECAP_OT_WatchModelDownloads,
+        POSECAP_OT_SetupBodyModelsWizard,
+    )
+
+
+def _start_credential_install(operator: Any, context: Any, bpy_module: Any) -> set[str]:
+    """Start the background credential download shared by the operator and wizard."""
+    wm_group = context.window_manager.posecap_model_setup
+    pear_root = _resolve_pear_root(context)
+    if pear_root == "":
+        return _report_setup_cancelled(
+            operator, wm_group, "Set the PEAR Root first (in the panel or preferences)."
+        )
+    email = str(wm_group.mpi_email).strip()
+    password = str(wm_group.mpi_password)
+    if email == "" or password == "":
+        return _report_setup_cancelled(
+            operator, wm_group, "Enter the email and password of your model account first."
+        )
+    credentials = MpiCredentials(email=email, password=password)
+    wm_group.mpi_password = ""
+    wm_group.status = ""
+    session = _new_session(context)
+    session.start_credential_install(Path(pear_root), credentials)
+    _start_session_poll(bpy_module)
+    return {"FINISHED"}
+
+
+def _report_setup_cancelled(operator: Any, wm_group: Any, message: str) -> set[str]:
+    """Surface a setup validation failure and cancel.
+
+    The wizard is a transient popup that Blender dismisses the moment execute()
+    returns, so a status label alone is invisible — the report() to Blender's
+    info log/status bar is what a user actually sees (GUIDELINES §2.2)."""
+    wm_group.status = message
+    operator.report({"ERROR"}, message)
+    return {"CANCELLED"}
 
 
 def _new_session(context: Any) -> ModelSetupSession:
@@ -189,12 +244,15 @@ def _publish_status(bpy_module: Any, session: Any) -> None:
 
 
 def _resolve_pear_root(context: Any) -> str:
+    """Resolve PEAR Root with the SAME fallback the engine uses.
+
+    A clean install types nothing, so without the env + installer-default
+    fallback the wizard/operator would fail "Set the PEAR Root first" even
+    though the engine finds the pear checkout — the exact clean-install bug.
+    """
     settings = getattr(context.scene, "posecap", None)
-    scene_root = str(getattr(settings, "pear_root", "")).strip()
-    if scene_root != "":
-        return scene_root
     preferences = _addon_preferences(context)
-    return str(getattr(preferences, "pear_root", "")).strip()
+    return resolve_pear_root(settings, preferences, dict(os.environ), lambda path: path.exists())
 
 
 def _resolve_engine_executable(context: Any) -> str:

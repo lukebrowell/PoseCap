@@ -31,9 +31,11 @@ from .keyframe_manager import (
 from .model_setup_panel import (
     active_model_setup_session,
     build_model_setup_classes,
-    draw_body_models_section,
+    draw_model_setup_status,
     models_missing,
 )
+from .onboarding import draw_getting_started, onboarding_complete, onboarding_steps
+from .pear_root import PathExists, first_nonempty, installer_path, resolve_pear_root
 from .recording import build_recording_classes, pause_playback
 from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
@@ -510,22 +512,46 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
 def _draw_main_panel(layout: Any, context: Any) -> None:
     settings = _settings_from_context(context)
-    wm_group = getattr(context.window_manager, WM_MODEL_SETUP_PROPERTY_NAME, None)
-    if wm_group is not None:
-        # Resolve with the SAME fallback the engine uses (explicit -> env ->
-        # installer default), or a fresh install shows nothing typed, the
-        # model-setup guidance stays hidden, and a new user is stuck.
-        pear_root = _panel_pear_root(context)
-        draw_body_models_section(
-            layout,
-            wm_group,
-            models_missing=models_missing(pear_root),
-            session=active_model_setup_session(),
-        )
+    # The Getting Started checklist is the first-run face: it renders whenever
+    # onboarding is incomplete (never hidden by a single state edge, the failure
+    # mode of the old conditional section) and collapses once every step is done.
+    steps = _getting_started_steps(context, settings)
+    if not onboarding_complete(steps):
+        draw_getting_started(layout, steps)
+    # Model-download progress still needs a home once the wizard dialog closes:
+    # the credential install runs in the background and its status lands here.
+    session = active_model_setup_session()
+    if session is not None:
+        draw_model_setup_status(layout, session)
     draw_live_stream_panel(layout, settings)
     draw_character_setup_section(layout, settings)
     if getattr(settings, "target_armature", None) is not None:
         draw_keyframe_manager_section(layout, context.scene)
+
+
+def _getting_started_steps(context: Any, settings: Any) -> Any:
+    """The onboarding steps for the current scene, from live readiness checks."""
+    # Resolve with the SAME fallback the engine uses (explicit -> env ->
+    # installer default), or a fresh install reads as "no models" incorrectly.
+    models_ready = not models_missing(_panel_pear_root(context))
+    return onboarding_steps(
+        models_ready=models_ready,
+        character_ready=_character_ready(settings),
+    )
+
+
+def _character_ready(settings: Any) -> bool:
+    """True when a valid armature is picked as the capture target.
+
+    Guards a removed StructRNA: the panel redraws every frame, and reading
+    ``.type`` on an armature deleted mid-session raises (AGENTS.md gotcha)."""
+    armature = getattr(settings, "target_armature", None)
+    if armature is None:
+        return False
+    try:
+        return getattr(armature, "type", None) == "ARMATURE"
+    except ReferenceError:
+        return False
 
 
 def _settings_from_context(context: Any) -> Any:
@@ -543,7 +569,7 @@ def _panel_pear_root(
     preferences = _addon_preferences(context)
     env = environ if environ is not None else dict(os.environ)
     exists = path_exists if path_exists is not None else (lambda path: path.exists())
-    return _resolve_pear_root(settings, preferences, env, exists)
+    return resolve_pear_root(settings, preferences, env, exists)
 
 
 def _is_armature_object(_settings: Any, candidate: Any) -> bool:
@@ -633,14 +659,9 @@ def _stop_active_session(bpy_module: Any) -> None:
         session.stop(unregister_timer=True, bpy_module=bpy_module)
 
 
-# Mirrors engine POSECAP_PEAR_ROOT_ENV; the addon must not import posecap_engine.
-POSECAP_PEAR_ROOT_ENV = "POSECAP_PEAR_ROOT"
 # Default install layout (Inno {localappdata}\PoseCap): a fresh install works
 # with nothing typed, and this even repairs installs made before this fallback.
-_INSTALLER_PEAR_SUBPATH = ("PoseCap", "pear")
 _INSTALLER_ENGINE_SUBPATH = ("PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
-
-PathExists = Callable[[Path], bool]
 
 
 def _engine_command(
@@ -652,7 +673,7 @@ def _engine_command(
 ) -> tuple[str, ...]:
     env = environ if environ is not None else dict(os.environ)
     exists = path_exists if path_exists is not None else (lambda path: path.exists())
-    pear_root = _resolve_pear_root(settings, preferences, env, exists)
+    pear_root = resolve_pear_root(settings, preferences, env, exists)
     if pear_root == "":
         raise ValueError(
             "PEAR Root is required — set PEAR Root in the PoseCap panel or the addon preferences."
@@ -690,29 +711,6 @@ def _engine_command(
     return tuple(command)
 
 
-def _resolve_pear_root(
-    settings: _LiveStreamSettings,
-    preferences: _AddonPreferences | None,
-    env: dict[str, str],
-    exists: PathExists,
-) -> str:
-    """Resolve the PEAR checkout, falling back so the user need not type a path.
-
-    Order: explicit panel/preferences value, then the POSECAP_PEAR_ROOT env
-    var, then the installer's default location. Empty only when none resolve.
-    """
-    explicit = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
-    if explicit != "":
-        return explicit
-    env_root = env.get(POSECAP_PEAR_ROOT_ENV, "").strip()
-    if env_root != "" and exists(Path(env_root)):
-        return env_root
-    installer_root = _installer_path(env, _INSTALLER_PEAR_SUBPATH)
-    if installer_root is not None and exists(installer_root):
-        return str(installer_root)
-    return ""
-
-
 def _resolve_engine_executable(
     preferences: _AddonPreferences | None,
     env: dict[str, str],
@@ -720,20 +718,13 @@ def _resolve_engine_executable(
 ) -> str:
     """Resolve the engine launcher: an explicit existing path wins, then the
     installer's app-local venv exe (which is not on PATH), then the bare name."""
-    candidate = _first_nonempty(getattr(preferences, "engine_executable", ""))
+    candidate = first_nonempty(getattr(preferences, "engine_executable", ""))
     if candidate != "" and exists(Path(candidate)):
         return candidate
-    installer_exe = _installer_path(env, _INSTALLER_ENGINE_SUBPATH)
+    installer_exe = installer_path(env, _INSTALLER_ENGINE_SUBPATH)
     if installer_exe is not None and exists(installer_exe):
         return str(installer_exe)
     return candidate if candidate != "" else "posecap-engine"
-
-
-def _installer_path(env: dict[str, str], subpath: tuple[str, ...]) -> Path | None:
-    local_app_data = env.get("LOCALAPPDATA", "").strip()
-    if local_app_data == "":
-        return None
-    return Path(local_app_data, *subpath)
 
 
 def _format_float(value: Any) -> str:
@@ -755,14 +746,6 @@ def _limb_filter_from(settings: _LiveStreamSettings) -> LimbFilter | None:
         torso=torso,
         apply_nothing=not (arms or legs or torso),
     )
-
-
-def _first_nonempty(*values: object) -> str:
-    for value in values:
-        text = str(value).strip()
-        if text != "":
-            return text
-    return ""
 
 
 def _addon_preferences(context: Any) -> _AddonPreferences | None:

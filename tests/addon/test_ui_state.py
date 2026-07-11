@@ -5,6 +5,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import posecap_addon.panels
@@ -245,6 +246,44 @@ def test_addon_preferences_draw_runtime_defaults() -> None:
     assert layout.has_property("engine_executable")
 
 
+def test_main_panel_shows_getting_started_until_onboarding_is_complete(monkeypatch) -> None:
+    # First run: models missing, no armature picked — the checklist is the
+    # panel's face and it carries the model-setup wizard call-to-action.
+    settings = _Settings(lifecycle_state="STOPPED")
+    context = _FakeContext(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True, raising=False)
+    monkeypatch.setattr(
+        posecap_addon.panels, "active_model_setup_session", lambda: None, raising=False
+    )
+    layout = _FakeLayout()
+
+    posecap_addon.panels._draw_main_panel(layout, context)
+
+    assert any("Getting Started" in text for text in layout._labels)
+    assert layout.has_operator("posecap.setup_body_models_wizard")
+
+
+def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatch) -> None:
+    # Models installed and a valid armature picked: the checklist collapses and
+    # the normal stream controls are the panel's face.
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.target_armature = SimpleNamespace(type="ARMATURE")
+    context = _FakeContext(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False, raising=False)
+    monkeypatch.setattr(
+        posecap_addon.panels, "active_model_setup_session", lambda: None, raising=False
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None, raising=False
+    )
+    layout = _FakeLayout()
+
+    posecap_addon.panels._draw_main_panel(layout, context)
+
+    assert not any("Getting Started" in text for text in layout._labels)
+    assert not layout.has_operator("posecap.setup_body_models_wizard")
+
+
 def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> None:
     bpy = _FakeBpy()
 
@@ -258,6 +297,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_StopStream",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_WatchModelDownloads",
+        "POSECAP_OT_SetupBodyModelsWizard",
         "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_StartRecording",
         "POSECAP_OT_StopRecording",
@@ -298,6 +338,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_StopRecording",
         "POSECAP_OT_StartRecording",
         "POSECAP_OT_ConvertCharacter",
+        "POSECAP_OT_SetupBodyModelsWizard",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_StopStream",

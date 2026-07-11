@@ -1,4 +1,4 @@
-"""Behavior tests for the Body Models panel section and its operators."""
+"""Behavior tests for the Body Models wizard, status, and its operators."""
 
 from types import SimpleNamespace
 from typing import Any
@@ -7,7 +7,8 @@ import posecap_addon.model_setup_panel as model_setup_panel
 from posecap_addon.model_setup_panel import (
     MODEL_SIGNUP_URLS,
     build_model_setup_classes,
-    draw_body_models_section,
+    draw_body_models_wizard,
+    draw_model_setup_status,
 )
 
 
@@ -61,51 +62,46 @@ def _wm_group(email: str = "", password: str = "") -> SimpleNamespace:
     return SimpleNamespace(mpi_email=email, mpi_password=password, status="")
 
 
-def test_missing_models_offer_signup_credentials_and_both_setup_paths() -> None:
+def test_wizard_form_offers_signup_credentials_and_manual_path() -> None:
     layout = _FakeLayout()
 
-    draw_body_models_section(
-        layout,
-        _wm_group(),
-        models_missing=True,
-        session=None,
-    )
+    draw_body_models_wizard(layout, _wm_group())
 
-    assert "posecap.setup_body_models" in layout.operator_ids
-    assert "posecap.watch_model_downloads" in layout.operator_ids
     signup_buttons = [url for url in layout.urls if url in set(MODEL_SIGNUP_URLS.values())]
     assert len(signup_buttons) == 3, "one sign-up button per MPI site"
     assert "mpi_email" in layout.props_drawn
     assert "mpi_password" in layout.props_drawn
+    # The manual-download escape hatch survives the move into the wizard.
+    assert "posecap.watch_model_downloads" in layout.operator_ids
 
 
-def test_section_is_empty_when_models_are_installed_and_idle() -> None:
+def test_status_is_empty_when_no_session() -> None:
     layout = _FakeLayout()
 
-    draw_body_models_section(
-        layout,
-        _wm_group(),
-        models_missing=False,
-        session=None,
-    )
+    draw_model_setup_status(layout, None)
 
     assert layout.operator_ids == []
     assert layout.props_drawn == []
+    assert layout.labels == []
 
 
-def test_running_session_shows_status_instead_of_credential_fields() -> None:
+def test_status_shows_running_session_progress() -> None:
     layout = _FakeLayout()
     session = SimpleNamespace(state="RUNNING", status_message="Downloading FLAME2020.zip…")
 
-    draw_body_models_section(
-        layout,
-        _wm_group(),
-        models_missing=True,
-        session=session,
-    )
+    draw_model_setup_status(layout, session)
 
     assert "Downloading FLAME2020.zip…" in layout.labels
-    assert "mpi_password" not in layout.props_drawn
+    assert layout.props_drawn == []
+
+
+def test_status_shows_a_finished_session_message() -> None:
+    layout = _FakeLayout()
+    session = SimpleNamespace(state="DONE", status_message="Models installed.")
+
+    draw_model_setup_status(layout, session)
+
+    assert "Models installed." in layout.labels
 
 
 class _FakeSession:
@@ -141,6 +137,14 @@ class _FakeTimers:
         return function in self.registered
 
 
+class _FakeOperatorBase:
+    def __init__(self) -> None:
+        self.reported: list[tuple[set, str]] = []
+
+    def report(self, level, message) -> None:
+        self.reported.append((level, message))
+
+
 def _fake_bpy_module(wm_group: SimpleNamespace) -> SimpleNamespace:
     context = SimpleNamespace(
         window_manager=SimpleNamespace(posecap_model_setup=wm_group, windows=[]),
@@ -148,7 +152,7 @@ def _fake_bpy_module(wm_group: SimpleNamespace) -> SimpleNamespace:
     return SimpleNamespace(
         app=SimpleNamespace(timers=_FakeTimers()),
         context=context,
-        types=SimpleNamespace(Operator=object),
+        types=SimpleNamespace(Operator=_FakeOperatorBase),
     )
 
 
@@ -165,7 +169,7 @@ def test_setup_operator_starts_a_session_and_clears_the_password(monkeypatch) ->
     wm_group = _wm_group(email="emmet@corridor.example", password="pw")
     bpy_module = _fake_bpy_module(wm_group)
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
-    setup_cls, _watch_cls = build_model_setup_classes(bpy_module)
+    setup_cls, _watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
 
     result = setup_cls().execute(_operator_context(wm_group))
 
@@ -183,7 +187,7 @@ def test_setup_operator_asks_for_credentials_when_fields_are_empty(monkeypatch) 
     wm_group = _wm_group()
     bpy_module = _fake_bpy_module(wm_group)
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
-    setup_cls, _watch_cls = build_model_setup_classes(bpy_module)
+    setup_cls, _watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
 
     result = setup_cls().execute(_operator_context(wm_group))
 
@@ -192,10 +196,14 @@ def test_setup_operator_asks_for_credentials_when_fields_are_empty(monkeypatch) 
 
 
 def test_setup_operator_asks_for_pear_root_when_unset(monkeypatch) -> None:
+    # Hide any installed runtime so the installer fallback can't resolve a root
+    # and this asserts the genuine "nothing configured" guidance.
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("POSECAP_PEAR_ROOT", raising=False)
     wm_group = _wm_group(email="a@b.c", password="pw")
     bpy_module = _fake_bpy_module(wm_group)
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
-    setup_cls, _watch_cls = build_model_setup_classes(bpy_module)
+    setup_cls, _watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
 
     result = setup_cls().execute(_operator_context(wm_group, pear_root=""))
 
@@ -203,11 +211,110 @@ def test_setup_operator_asks_for_pear_root_when_unset(monkeypatch) -> None:
     assert "pear root" in wm_group.status.lower()
 
 
+def test_setup_operator_resolves_installer_pear_root_on_a_fresh_install(
+    monkeypatch, tmp_path
+) -> None:
+    # Clean install: nothing typed, but the installer laid down its pear dir.
+    # The operator must find it (same fallback as the engine) instead of
+    # stopping with "Set the PEAR Root first" — the wizard's clean-install bug.
+    installer_pear = tmp_path / "PoseCap" / "pear"
+    installer_pear.mkdir(parents=True)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("POSECAP_PEAR_ROOT", raising=False)
+    wm_group = _wm_group(email="a@b.c", password="pw")
+    bpy_module = _fake_bpy_module(wm_group)
+    monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
+    setup_cls, _watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
+
+    result = setup_cls().execute(_operator_context(wm_group, pear_root=""))
+
+    assert result == {"FINISHED"}
+    session: Any = model_setup_panel.active_model_setup_session()
+    assert session is not None and session.credential_calls
+    assert session.credential_calls[0][0] == installer_pear
+
+
+def test_wizard_cancel_reports_the_error_to_blender(monkeypatch) -> None:
+    # The wizard is a popup that closes on execute(): a hidden status label is
+    # invisible, so a validation failure must reach Blender's info log/report.
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("POSECAP_PEAR_ROOT", raising=False)
+    wm_group = _wm_group(email="a@b.c", password="pw")
+    bpy_module = _fake_bpy_module(wm_group)
+    monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
+    _setup_cls, _watch_cls, wizard_cls = build_model_setup_classes(bpy_module)
+    operator = wizard_cls()
+
+    result = operator.execute(_operator_context(wm_group, pear_root=""))
+
+    assert result == {"CANCELLED"}
+    assert operator.reported, (
+        "cancel must report, not only set a label the closed dialog can't show"
+    )
+    level, message = operator.reported[0]
+    assert level == {"ERROR"}
+    assert "pear root" in message.lower()
+
+
+def test_wizard_operator_opens_a_props_dialog() -> None:
+    wm_group = _wm_group()
+    bpy_module = _fake_bpy_module(wm_group)
+    _setup_cls, _watch_cls, wizard_cls = build_model_setup_classes(bpy_module)
+    calls: list[dict[str, object]] = []
+
+    class _DialogWindowManager:
+        def invoke_props_dialog(self, operator, *, width: int) -> set[str]:
+            calls.append({"operator": operator, "width": width})
+            return {"RUNNING_MODAL"}
+
+    context = SimpleNamespace(window_manager=_DialogWindowManager())
+    operator = wizard_cls()
+
+    result = operator.invoke(context, None)
+
+    assert result == {"RUNNING_MODAL"}
+    assert calls and calls[0]["operator"] is operator
+    assert calls[0]["width"] == 480
+
+
+def test_wizard_operator_draws_the_guided_form() -> None:
+    wm_group = _wm_group()
+    bpy_module = _fake_bpy_module(wm_group)
+    _setup_cls, _watch_cls, wizard_cls = build_model_setup_classes(bpy_module)
+    operator = wizard_cls()
+    operator.layout = _FakeLayout()
+    context = SimpleNamespace(
+        window_manager=SimpleNamespace(posecap_model_setup=wm_group, windows=[]),
+    )
+
+    operator.draw(context)
+
+    assert "mpi_email" in operator.layout.props_drawn
+    assert "mpi_password" in operator.layout.props_drawn
+    signup_buttons = [url for url in operator.layout.urls if url in set(MODEL_SIGNUP_URLS.values())]
+    assert len(signup_buttons) == 3
+
+
+def test_wizard_operator_execute_starts_the_credential_install(monkeypatch) -> None:
+    wm_group = _wm_group(email="a@b.c", password="pw")
+    bpy_module = _fake_bpy_module(wm_group)
+    monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
+    _setup_cls, _watch_cls, wizard_cls = build_model_setup_classes(bpy_module)
+
+    result = wizard_cls().execute(_operator_context(wm_group))
+
+    assert result == {"FINISHED"}
+    session: Any = model_setup_panel.active_model_setup_session()
+    assert session is not None and session.credential_calls
+    assert wm_group.mpi_password == ""
+    assert len(bpy_module.app.timers.registered) == 1
+
+
 def test_watch_operator_starts_the_downloads_watcher(monkeypatch) -> None:
     wm_group = _wm_group()
     bpy_module = _fake_bpy_module(wm_group)
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
-    _setup_cls, watch_cls = build_model_setup_classes(bpy_module)
+    _setup_cls, watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
 
     result = watch_cls().execute(_operator_context(wm_group))
 
@@ -221,7 +328,7 @@ def test_poll_timer_stops_after_the_session_finishes(monkeypatch) -> None:
     wm_group = _wm_group(email="a@b.c", password="pw")
     bpy_module = _fake_bpy_module(wm_group)
     monkeypatch.setattr(model_setup_panel, "ModelSetupSession", _FakeSession)
-    setup_cls, _watch_cls = build_model_setup_classes(bpy_module)
+    setup_cls, _watch_cls, _wizard_cls = build_model_setup_classes(bpy_module)
     setup_cls().execute(_operator_context(wm_group))
     session: Any = model_setup_panel.active_model_setup_session()
     poll = bpy_module.app.timers.registered[0]
