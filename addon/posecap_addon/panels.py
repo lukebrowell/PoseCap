@@ -99,8 +99,17 @@ class _AddonPreferences(Protocol):
     engine_executable: str
 
 
-def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
-    """Draw the live-stream controls from the current lifecycle state."""
+def draw_live_stream_panel(
+    layout: Any,
+    settings: _LiveStreamSettings,
+    *,
+    capture_ready: bool = True,
+) -> None:
+    """Draw the live-stream controls from the current lifecycle state.
+
+    ``capture_ready`` is False until onboarding is complete (models installed +
+    a target character): the capture actions stay disabled and a one-line hint
+    points back to the checklist, so a new user cannot click into a failure."""
     controls = lifecycle_controls(
         settings.lifecycle_state,
         status_message=settings.status_message,
@@ -137,23 +146,28 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
         limbs.prop(settings, "apply_legs", toggle=True)
         limbs.prop(settings, "apply_torso", toggle=True)
 
+    if not capture_ready:
+        layout.label(text="Finish Getting Started above to enable capture.", icon="INFO")
+
     actions = layout.row(align=True)
     start = actions.row()
-    start.enabled = controls.can_start
+    # Gate on onboarding too: a disabled Start Stream is the guidance — it points
+    # the user back to the checklist instead of failing on missing models.
+    start.enabled = controls.can_start and capture_ready
     start.operator("posecap.start_stream", text="Start Stream", icon="PLAY")
 
     stop = actions.row()
     stop.enabled = controls.can_stop
     stop.operator("posecap.stop_stream", text="Stop Stream", icon="PAUSE")
 
-    _draw_record_control(layout, controls)
+    _draw_record_control(layout, controls, capture_ready=capture_ready)
 
 
-def _draw_record_control(layout: Any, controls: Any) -> None:
+def _draw_record_control(layout: Any, controls: Any, *, capture_ready: bool = True) -> None:
     """Record is an operator, not a bare toggle: it must also drive timeline
     playback so keyframes spread across the advancing playhead (spec R6)."""
     row = layout.row()
-    row.enabled = controls.can_record
+    row.enabled = controls.can_record and capture_ready
     if controls.is_recording:
         row.operator("posecap.stop_recording", text="Stop Recording", icon="PAUSE")
         return
@@ -516,14 +530,15 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
     # onboarding is incomplete (never hidden by a single state edge, the failure
     # mode of the old conditional section) and collapses once every step is done.
     steps = _getting_started_steps(context, settings)
-    if not onboarding_complete(steps):
+    capture_ready = onboarding_complete(steps)
+    if not capture_ready:
         draw_getting_started(layout, steps)
     # Model-download progress still needs a home once the wizard dialog closes:
     # the credential install runs in the background and its status lands here.
     session = active_model_setup_session()
     if session is not None:
         draw_model_setup_status(layout, session)
-    draw_live_stream_panel(layout, settings)
+    draw_live_stream_panel(layout, settings, capture_ready=capture_ready)
     draw_character_setup_section(layout, settings)
     if getattr(settings, "target_armature", None) is not None:
         draw_keyframe_manager_section(layout, context.scene)

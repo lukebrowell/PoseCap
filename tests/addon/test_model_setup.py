@@ -517,3 +517,99 @@ def test_corrupted_manual_download_produces_a_friendly_message(tmp_path: Path) -
     message = str(excinfo.value)
     assert "FLAME2020.zip" in message or "generic_model.pkl" in message
     assert "Traceback" not in message
+
+
+def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tmp_path):
+    """The real MPI download authenticates the POST, sets a session cookie, and
+    302-redirects to the file; the redirect target serves the file only if that
+    cookie rides along. urllib's default opener follows the redirect but drops
+    the cookie, so the shipped credential download returned an HTML login page
+    instead of the model (confirmed live against download.is.tue.mpg.de,
+    2026-07-11). This guards the cookie-across-redirect behavior."""
+    import http.server
+    import threading
+
+    from posecap_addon.model_setup import _urllib_fetch
+
+    file_bytes = b"PK\x03\x04" + b"BODYMODEL" * 512
+    html_login = b"<!DOCTYPE html><html><head><title>Login</title></head></html>"
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            self.send_response(302)
+            self.send_header("Set-Cookie", "sid=abc123; Path=/")
+            self.send_header("Location", "/file")
+            self.end_headers()
+
+        def do_GET(self):
+            gated = "sid=abc123" in (self.headers.get("Cookie") or "")
+            body = file_bytes if gated else html_login
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "application/octet-stream" if gated else "text/html",
+            )
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        sink = tmp_path / "out.bin"
+        _urllib_fetch(
+            f"http://127.0.0.1:{port}/download.php",
+            b"username=x&password=y",
+            sink,
+            lambda _done, _total: None,
+        )
+        assert sink.read_bytes() == file_bytes, (
+            "the session cookie must ride the redirect, or the download is an HTML login page"
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+
+def test_install_forwards_download_progress_instead_of_discarding_it(tmp_path: Path) -> None:
+    # The per-file byte progress used to be dropped (_noop_progress), so the UI
+    # could only show a spinner. It must now reach the caller for a real bar.
+    seen: list[tuple[int, int]] = []
+    install_missing_models(
+        tmp_path,
+        CREDENTIALS,
+        fetch=_RecordingFetcher(),
+        progress=lambda done, total: seen.append((done, total)),
+        assets=_test_assets(),
+    )
+    assert seen, "per-file progress must reach the caller"
+    assert all(total > 0 for _done, total in seen)
+
+
+def test_download_progress_surfaces_as_a_bar_fraction_and_mb_readout(tmp_path: Path) -> None:
+    captured: list[tuple[float | None, str]] = []
+    base = _RecordingFetcher()
+    session_box: dict[str, ModelSetupSession] = {}
+
+    def fetch(url: str, post_data: bytes | None, sink_path: Path, progress) -> None:
+        progress(25 * 1024 * 1024, 100 * 1024 * 1024)  # 25 of 100 MB
+        session = session_box["session"]
+        captured.append((session.progress_fraction, session.status_message))
+        base(url, post_data, sink_path, progress)
+
+    session = ModelSetupSession(fetch=fetch, assets=_test_assets())
+    session_box["session"] = session
+    session.start_credential_install(tmp_path, CREDENTIALS)
+    session.join(timeout_seconds=10.0)
+
+    fraction, status = captured[0]
+    assert fraction == pytest.approx(0.25)
+    assert "25" in status and "MB" in status
+    # When everything is installed the bar clears so it does not sit at a stale value.
+    assert session.progress_fraction is None

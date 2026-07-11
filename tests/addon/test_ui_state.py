@@ -66,6 +66,28 @@ def test_live_stream_panel_draws_state_controls_from_lifecycle() -> None:
     assert layout.has_label("Stopped")
 
 
+def test_capture_actions_disabled_until_onboarding_is_complete() -> None:
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(layout, _Settings(lifecycle_state="STOPPED"), capture_ready=False)
+
+    assert not layout.enabled_for_operator("posecap.start_stream"), (
+        "Start Stream must be disabled until models + character are ready"
+    )
+    assert any("Finish Getting Started" in text for text in layout._labels), (
+        "a disabled button needs a hint pointing back to the checklist"
+    )
+
+
+def test_capture_actions_enabled_once_onboarding_is_complete() -> None:
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(layout, _Settings(lifecycle_state="STOPPED"), capture_ready=True)
+
+    assert layout.enabled_for_operator("posecap.start_stream")
+    assert not any("Finish Getting Started" in text for text in layout._labels)
+
+
 def test_live_stream_panel_offers_record_when_streaming_and_stop_when_recording() -> None:
     streaming = _FakeLayout()
     draw_live_stream_panel(streaming, _Settings(lifecycle_state="STREAMING"))
@@ -261,6 +283,9 @@ def test_main_panel_shows_getting_started_until_onboarding_is_complete(monkeypat
 
     assert any("Getting Started" in text for text in layout._labels)
     assert layout.has_operator("posecap.setup_body_models_wizard")
+    assert not layout.enabled_for_operator("posecap.start_stream"), (
+        "capture stays gated while onboarding is incomplete"
+    )
 
 
 def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatch) -> None:
@@ -282,6 +307,9 @@ def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatc
 
     assert not any("Getting Started" in text for text in layout._labels)
     assert not layout.has_operator("posecap.setup_body_models_wizard")
+    assert layout.enabled_for_operator("posecap.start_stream"), (
+        "capture is enabled once every onboarding step is done"
+    )
 
 
 def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> None:

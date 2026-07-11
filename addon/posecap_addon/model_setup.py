@@ -10,6 +10,7 @@ persisted, or fetched anonymously.
 from __future__ import annotations
 
 import hashlib
+import http.cookiejar
 import json
 import logging
 import os
@@ -83,16 +84,20 @@ def install_missing_models(
     *,
     fetch: Fetcher | None = None,
     status: StatusCallback | None = None,
+    progress: ProgressCallback | None = None,
     assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
 ) -> InstallReport:
     """Download and place every missing model with the user's own credentials.
 
     One fetch per unique source archive; every placement is validated before
-    it lands and written atomically. Raises ModelSetupError with a
-    user-facing message on any failure, leaving no partial files behind.
+    it lands and written atomically. ``progress`` receives per-file
+    (bytes_done, bytes_total) so the UI can show a real bar, not a spinner.
+    Raises ModelSetupError with a user-facing message on any failure, leaving
+    no partial files behind.
     """
     fetch_callable = fetch or _urllib_fetch
     report_status = status or (lambda _message: None)
+    report_progress = progress or _noop_progress
     missing = missing_model_assets(pear_root, assets)
     targets_by_source: dict[MpiDownload | PublicDownload, list[ModelAsset]] = {}
     for asset in missing:
@@ -106,7 +111,7 @@ def install_missing_models(
             report_status(f"Downloading {file_name}…")
             payload_path = staging_dir / file_name
             url, post_data = _request_for(source, credentials)
-            fetch_callable(url, post_data, payload_path, _noop_progress)
+            fetch_callable(url, post_data, payload_path, report_progress)
             report_status(f"Installing {file_name}…")
             installed.extend(_place_targets(pear_root, source, targets, payload_path))
     finally:
@@ -366,6 +371,10 @@ class ModelSetupSession:
         self._finalizing = False
         self.state: SessionState = "IDLE"
         self.status_message = ""
+        # Fraction (0..1) of the current file's download, or None when there is
+        # nothing measurable to show — drives a real progress bar, not a spinner.
+        self.progress_fraction: float | None = None
+        self._status_base = ""
 
     def start_credential_install(self, pear_root: Path, credentials: MpiCredentials) -> None:
         """Download every missing model with the user's credentials, in background."""
@@ -437,10 +446,12 @@ class ModelSetupSession:
                 credentials,
                 fetch=self._fetch,
                 status=self._set_status,
+                progress=self._set_progress,
                 assets=self._assets,
             )
         except ModelSetupError as exc:
             self.state = "FAILED"
+            self.progress_fraction = None
             self.status_message = str(exc)
             return
         except Exception:
@@ -462,6 +473,7 @@ class ModelSetupSession:
                     MpiCredentials(email="", password=""),
                     fetch=self._fetch,
                     status=self._set_status,
+                    progress=self._set_progress,
                     assets=self._assets,
                 )
         except ModelSetupError as exc:
@@ -486,12 +498,27 @@ class ModelSetupSession:
             self.status_message = "Some model files are still missing."
             return
         self.state = "DONE"
+        self.progress_fraction = None
         self.status_message = "Models installed."
         if self._verify is not None:
             self.status_message = self._verify(pear_root)
 
     def _set_status(self, message: str) -> None:
+        # A new phase (Downloading X… / Installing X…) starts fresh: forget the
+        # previous file's byte count so the bar text isn't stale.
+        self._status_base = message
+        self.progress_fraction = None
         self.status_message = message
+
+    def _set_progress(self, bytes_done: int, bytes_total: int) -> None:
+        """Turn per-file byte counts into a bar fraction plus a MB read-out."""
+        if bytes_total <= 0:
+            self.progress_fraction = None
+            return
+        self.progress_fraction = min(1.0, bytes_done / bytes_total)
+        megabyte = 1024 * 1024
+        base = self._status_base.rstrip("…") or "Downloading"
+        self.status_message = f"{base} — {bytes_done // megabyte} / {bytes_total // megabyte} MB"
 
 
 def _urllib_fetch(
@@ -500,9 +527,18 @@ def _urllib_fetch(
     sink_path: Path,
     progress: ProgressCallback,
 ) -> None:
+    # download.php authenticates the POST, sets a session cookie, and 302-redirects
+    # to the file; the redirect target serves the file only if that cookie rides
+    # along. urllib's default opener follows redirects but has no cookie handling,
+    # so the redirect landed on an HTML login page instead of the model — every
+    # credential download failed until this opener carried the cookie through
+    # (root-caused live against download.is.tue.mpg.de, 2026-07-11).
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+    )
     request = urllib.request.Request(url, data=post_data)
     try:
-        with urllib.request.urlopen(request, timeout=60.0) as response:
+        with opener.open(request, timeout=60.0) as response:
             total = int(response.headers.get("Content-Length") or 0)
             done = 0
             with sink_path.open("wb") as sink:

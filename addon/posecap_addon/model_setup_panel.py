@@ -66,10 +66,17 @@ def draw_model_setup_status(layout: Any, session: Any | None) -> None:
     if session.state in ("RUNNING", "WATCHING"):
         box = layout.box()
         box.label(text="Body Models", icon="ARMATURE_DATA")
+        fraction = getattr(session, "progress_fraction", None)
+        if fraction is not None:
+            # A real bar (Blender 4.0+ layout.progress) so the user sees the
+            # download move instead of guessing whether it hung.
+            box.progress(factor=float(fraction), type="BAR", text=session.status_message)
+            return
         box.label(text=session.status_message, icon="TIME")
         return
     if session.state in ("DONE", "FAILED"):
-        layout.box().label(text=session.status_message, icon="INFO")
+        icon = "CHECKMARK" if session.state == "DONE" else "ERROR"
+        layout.box().label(text=session.status_message, icon=icon)
 
 
 def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:

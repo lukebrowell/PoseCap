@@ -41,6 +41,14 @@ class _FakeLayout:
         self._sink["operators"].append((operator_id, props))
         return props
 
+    def progress(self, *, factor: float, type: str = "BAR", text: str = "") -> None:
+        self._sink.setdefault("progress", []).append(factor)
+        self._sink["labels"].append(text)
+
+    @property
+    def progress_factors(self) -> list[float]:
+        return self._sink.get("progress", [])
+
     @property
     def operator_ids(self) -> list[str]:
         return [operator_id for operator_id, _props in self._sink["operators"]]
@@ -102,6 +110,20 @@ def test_status_shows_a_finished_session_message() -> None:
     draw_model_setup_status(layout, session)
 
     assert "Models installed." in layout.labels
+
+
+def test_status_shows_a_progress_bar_while_a_download_has_a_measurable_fraction() -> None:
+    layout = _FakeLayout()
+    session = SimpleNamespace(
+        state="RUNNING",
+        status_message="Downloading FLAME2020.zip — 45 / 167 MB",
+        progress_fraction=0.27,
+    )
+
+    draw_model_setup_status(layout, session)
+
+    assert layout.progress_factors == [0.27], "a measurable download draws a real bar"
+    assert any("45 / 167 MB" in text for text in layout.labels)
 
 
 class _FakeSession:
