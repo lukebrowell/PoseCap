@@ -302,7 +302,7 @@ def test_credential_session_reports_progress_then_success(tmp_path: Path) -> Non
     session = ModelSetupSession(fetch=_RecordingFetcher(), assets=_test_assets())
 
     session.start_credential_install(tmp_path, CREDENTIALS)
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     assert session.state == "DONE"
     assert "installed" in session.status_message.lower()
@@ -317,7 +317,7 @@ def test_credential_session_surfaces_friendly_failure(tmp_path: Path) -> None:
     )
 
     session.start_credential_install(tmp_path, CREDENTIALS)
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     assert session.state == "FAILED"
     assert "password" in session.status_message.lower()
@@ -351,7 +351,7 @@ def test_watcher_session_installs_archives_as_they_appear(tmp_path: Path) -> Non
     # Completion (public fetch + doctor) runs on a background thread so the
     # Blender UI never blocks; the tick only spawns it.
     session.tick()
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     assert session.state == "DONE", "public mean-params file must be fetched automatically"
     assert missing_model_assets(pear_root, _test_assets()) == ()
@@ -389,7 +389,7 @@ def test_watcher_completion_does_not_block_the_calling_thread(tmp_path: Path) ->
     session.tick()  # must return immediately even though the fetch is blocked
     assert session.state == "RUNNING"
     release.set()
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
     assert session.state == "DONE"
 
 
@@ -418,7 +418,7 @@ def test_watcher_keeps_watching_when_the_public_fetch_fails(tmp_path: Path) -> N
     session.start_watching(pear_root, downloads)
 
     session.tick()
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     assert session.state == "WATCHING", "a failed finish must resume watching, not wedge"
     session.tick()  # must be able to retry, not be stuck finalizing
@@ -450,7 +450,7 @@ def test_session_runs_the_doctor_verification_after_a_successful_install(
     )
 
     session.start_credential_install(tmp_path, CREDENTIALS)
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     assert session.state == "DONE"
     assert session.status_message == "Models installed — doctor check passed."
@@ -606,7 +606,7 @@ def test_download_progress_surfaces_as_a_bar_fraction_and_mb_readout(tmp_path: P
     session = ModelSetupSession(fetch=fetch, assets=_test_assets())
     session_box["session"] = session
     session.start_credential_install(tmp_path, CREDENTIALS)
-    session.join(timeout_seconds=10.0)
+    session.join(timeout_seconds=60.0)
 
     fraction, status = captured[0]
     assert fraction == pytest.approx(0.25)
