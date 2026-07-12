@@ -95,8 +95,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — setup from clone to green tests, the 
 
 ## Acknowledgements
 
-- **Alê Alvaro** ([@alexandremendoncaalvaro](https://github.com/alexandremendoncaalvaro)) — the PoseCap rewrite: architecture, implementation, and installers
 - **Dean / Corridor Digital** — concept and the production use case driving this
+- **Alê Alvaro** ([@alexandremendoncaalvaro](https://github.com/alexandremendoncaalvaro)) — the PoseCap rewrite: architecture, implementation, and installers
 - **[PEAR](https://wujh2001.github.io/PEAR/)** (Wu et al., IDEA) — the pose-estimation backbone
 - **[Fast SAM 3D Body](https://github.com/yangtiming/Fast-SAM-3D-Body)** (Yang et al.) — roadmap engine backend
 - **[Meshcapade / MPI SMPL Blender addon](https://github.com/Meshcapade/SMPL_blender_addon)** — the addon lineage the POC started from
